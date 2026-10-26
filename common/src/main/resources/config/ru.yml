@@ -1,4 +1,4 @@
-# Основная конфигурация GrimAC
+# Основная конфигурация Full Full GrimAC
 # Исходный код: https://github.com/MWHunter/Grim
 # Авторское право 2025 DefineOutside и соавторы, лицензия GPLv3.
 # Модифицированные двоичные файлы, или плагины со скопированным исходным кодом, должны быть приватными,
@@ -87,6 +87,59 @@ Simulation:
     setback-violation-threshold: 1
 
 # Проверяет, вошел ли игрок в блок во время движения.
+AutoTotem:
+    enabled: true
+    setbackvl: 3
+    decay: 0.05
+
+InventoryAutoClicker:
+    enabled: true
+    setbackvl: 5
+    decay: 0.05
+
+InventoryAction:
+    enabled: true
+    setbackvl: 3
+    decay: 0.05
+CombatAutoClicker:
+    enabled: true
+    setbackvl: 5
+    decay: 0.05
+
+KillAuraBot:
+    enabled: true
+    setbackvl: 1
+    decay: 0.02
+
+AntiXray:
+    enabled: true
+    setbackvl: 3
+    decay: 0.05
+
+# Динамическая защита от просадок TPS сервера
+performance-protection:
+    enabled: true
+    low-tps-threshold: 15.0
+    recover-tps-threshold: 17.0
+    disable-inventory-checks: true
+    disable-killaura-bots: true
+    simplify-antixray: true
+    throttle-secondary-checks: true
+    broadcast-to-ops: true
+
+# Кластерное сравнение игроков с похожим пингом
+cohort-comparison:
+    enabled: true
+    z-score-threshold: 3.0
+
+ComparativeAnomaly:
+    enabled: true
+    setbackvl: 3
+    decay: 0.05
+
+
+
+
 Phase:
     setbackvl: 1 # Глитч с блоками может позволить забраться на стену, к тому же эта проверка относительно стабильна
     decay: 0.005

@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac.events.packets;
 
 import ac.grim.grimac.GrimAPI;
@@ -317,6 +323,19 @@ public class PacketEntityReplication extends GrimProcessor implements PacketRece
 
             if (status.getStatus() >= 24 && status.getStatus() <= 28 && status.getEntityId() == player.entityID) {
                 player.compensatedEntities.self.opLevel = status.getStatus() - 24;
+            }
+
+            if (status.getStatus() == 2 && status.getEntityId() == player.entityID) {
+                player.packetStateData.lastDamageTime = System.currentTimeMillis();
+            }
+
+            if (status.getStatus() == 35 && status.getEntityId() == player.entityID) {
+                player.packetStateData.serverTotemPopTime = System.currentTimeMillis();
+                player.packetStateData.expectingTotemRefill = true;
+                player.sendTransaction();
+                player.latencyUtils.addRealTimeTask(player.lastTransactionSent.get(), () -> {
+                    player.packetStateData.lastTotemPopTime = System.currentTimeMillis();
+                });
             }
         } else if (event.getPacketType() == PacketType.Play.Server.SET_SLOT) {
             WrapperPlayServerSetSlot slot = new WrapperPlayServerSetSlot(event);

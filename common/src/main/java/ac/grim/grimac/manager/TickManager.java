@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac.manager;
 
 import ac.grim.grimac.manager.tick.Tickable;
@@ -30,6 +36,8 @@ public class TickManager {
 
     public void tickSync() {
         currentTick++;
+        ac.grim.grimac.manager.performance.PerformanceProtectionManager.update(currentTick);
+        ac.grim.grimac.manager.cohort.PingCohortManager.update(currentTick);
         for (Tickable tickable : syncTick.values()) {
             tickable.tick();
         }

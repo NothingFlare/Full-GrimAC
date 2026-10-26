@@ -1,4 +1,4 @@
-# GrimAC main configuration
+# Full Full GrimAC main configuration
 # Source code: https://github.com/MWHunter/Grim
 # Copyright 2025 DefineOutside and contributors, Licensed under GPLv3.
 # Modified binaries, or plugins with copied grim code, must be private,
@@ -87,6 +87,57 @@ Simulation:
     setback-violation-threshold: 1
 
 # Checks to see if a player entered a block during a movement
+AutoTotem:
+    enabled: true
+    setbackvl: 3
+    decay: 0.05
+
+InventoryAutoClicker:
+    enabled: true
+    setbackvl: 5
+    decay: 0.05
+
+InventoryAction:
+    enabled: true
+    setbackvl: 3
+    decay: 0.05
+CombatAutoClicker:
+    enabled: true
+    setbackvl: 5
+    decay: 0.05
+
+KillAuraBot:
+    enabled: true
+    setbackvl: 1
+    decay: 0.02
+
+AntiXray:
+    enabled: true
+    setbackvl: 3
+    decay: 0.05
+
+performance-protection:
+    enabled: true
+    low-tps-threshold: 15.0
+    recover-tps-threshold: 17.0
+    disable-inventory-checks: true
+    disable-killaura-bots: true
+    simplify-antixray: true
+    throttle-secondary-checks: true
+    broadcast-to-ops: true
+
+cohort-comparison:
+    enabled: true
+    z-score-threshold: 3.0
+
+ComparativeAnomaly:
+    enabled: true
+    setbackvl: 3
+    decay: 0.05
+
+
+
+
 Phase:
     setbackvl: 1 # Glitching into blocks can allow wall climbing, plus this check is relatively stable
     decay: 0.005

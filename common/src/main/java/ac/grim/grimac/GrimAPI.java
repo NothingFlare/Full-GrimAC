@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac;
 
 import ac.grim.grimac.api.event.EventBus;
@@ -75,7 +81,6 @@ public final class GrimAPI {
         if (override != null) return override;
         if (ReflectionUtils.hasClass("io.papermc.paper.threadedregions.RegionizedServer")) return Platform.FOLIA;
         if (ReflectionUtils.hasClass("org.bukkit.Bukkit")) return Platform.BUKKIT;
-        if (ReflectionUtils.hasClass("net.fabricmc.loader.api.FabricLoader")) return Platform.FABRIC;
         throw new IllegalStateException("Unknown platform!");
     }
 

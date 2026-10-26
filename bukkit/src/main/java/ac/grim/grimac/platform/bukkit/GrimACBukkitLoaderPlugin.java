@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
+
 package ac.grim.grimac.platform.bukkit;
 
 import ac.grim.grimac.GrimAPI;
@@ -53,6 +60,7 @@ import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.LegacyPaperCommandManager;
 
 public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements PlatformLoader {
+
     public static GrimACBukkitLoaderPlugin LOADER;
 
     private final LazyHolder<PlatformScheduler> scheduler = LazyHolder.simple(this::createScheduler);
@@ -72,7 +80,30 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
     public GrimACBukkitLoaderPlugin() {
         BukkitResolverRegistrar registrar = new BukkitResolverRegistrar();
         registrar.registerAll(GrimAPI.INSTANCE.getExtensionManager());
-        this.plugin = registrar.resolvePlugin(this);
+        final GrimPlugin resolved = registrar.resolvePlugin(this);
+        this.plugin = new GrimPlugin() {
+            @Override
+            public ac.grim.grimac.api.plugin.GrimPluginDescription getDescription() {
+                return resolved.getDescription();
+            }
+
+            @Override
+            public java.util.logging.Logger getLogger() {
+                return resolved.getLogger();
+            }
+
+            @Override
+            public java.io.File getDataFolder() {
+                java.io.File def = resolved.getDataFolder();
+                if (!def.exists()) {
+                    java.io.File legacy = new java.io.File(def.getParentFile(), "GrimAC");
+                    if (legacy.exists()) {
+                        return legacy;
+                    }
+                }
+                return def;
+            }
+        };
     }
 
     @Override

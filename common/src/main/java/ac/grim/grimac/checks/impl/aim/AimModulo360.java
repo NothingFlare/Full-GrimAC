@@ -1,7 +1,14 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac.checks.impl.aim;
 
 import ac.grim.grimac.checks.Check;
 import ac.grim.grimac.checks.CheckData;
+import ac.grim.grimac.checks.impl.combat.KillAuraBot;
 import ac.grim.grimac.checks.type.RotationListener;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.update.RotationUpdate;
@@ -30,6 +37,10 @@ public class AimModulo360 extends Check implements RotationListener {
 
         if (player.yaw < 360 && player.yaw > -360 && Math.abs(rotationUpdate.deltaYaw()) > 320 && Math.abs(lastDeltaYaw) < 30) {
             flag();
+            KillAuraBot bot = player.checkManager.get(KillAuraBot.class);
+            if (bot != null) {
+                bot.addSuspicion(2);
+            }
         } else {
             reward();
         }

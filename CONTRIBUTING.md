@@ -9,7 +9,7 @@ make the process go more smoothly.*
 
 - **Compatibility**
   - Any changes must be compatible with
-  the [supported environments](https://github.com/GrimAnticheat/Grim/wiki/Supported-environments) (Spigot, Paper, Folia, Fabric, etc.)
+  the [supported environments](https://github.com/GrimAnticheat/Grim/wiki/Supported-environments) (Spigot, Paper, Folia, etc.)
   - The plugin must be compatible with minecraft versions 1.8 and higher. Exempting checks from specific versions is acceptable.
   - The plugin must be able to run on Java 17 or higher. Changes that don't support Java 17 at runtime will not be accepted.
 

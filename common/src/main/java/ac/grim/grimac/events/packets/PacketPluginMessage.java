@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
+
 package ac.grim.grimac.events.packets;
 
 import ac.grim.grimac.GrimAPI;
@@ -33,7 +40,7 @@ public class PacketPluginMessage extends PacketListenerAbstract {
         if (usingProxy && CommonGrimArguments.WARN_ON_VIA_PROXY.value()) {
             LogUtil.warn(
                     user.getName() + " seems to have connected through a proxy running ViaVersion. "
-                            + "Having ViaVersion installed on the proxy is incompatible with GrimAC and causes many issues. "
+                            + "Having ViaVersion installed on the proxy is incompatible with Full GrimAC and causes many issues. "
                             + "Please remove ViaVersion from your proxy server and install it on your backend servers instead."
             );
         }

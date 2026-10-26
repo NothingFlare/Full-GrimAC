@@ -1,5 +1,5 @@
 # ===========================================================================
-#  Grim 数据存储
+#  Full GrimAC 数据存储
 #
 #  将 DataStore 分类（violation / session / player-identity / setting / blob）
 #  路由到具体的后端实例。`routing:` 中列出的每个后端在

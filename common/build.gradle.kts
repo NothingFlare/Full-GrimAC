@@ -80,9 +80,12 @@ dependencies {
     }
 
     // The self-contained API jar retains DeviceOs; its unshaded POM references a retired Geyser snapshot.
-    compileOnly(variantOf(libs.floodgate.api) { classifier("shaded") }) { isTransitive = false }
+    // compileOnly(variantOf(libs.floodgate.api) { classifier("shaded") }) { isTransitive = false }
     compileOnly(libs.viaversion)
     compileOnly(libs.viabackwards)
+    compileOnly("com.google.guava:guava:32.1.2-jre")
+    compileOnly("com.google.code.findbugs:jsr305:3.0.2")
+    compileOnly("com.google.code.gson:gson:2.10.1")
     compileOnly(libs.netty)
     compileOnly(libs.luckperms)
 

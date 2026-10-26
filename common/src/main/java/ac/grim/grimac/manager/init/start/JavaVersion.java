@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
+
 package ac.grim.grimac.manager.init.start;
 
 import ac.grim.grimac.utils.anticheat.LogUtil;
@@ -28,7 +35,7 @@ public class JavaVersion implements StartableInitable {
 
         if (version < 17) {
             LogUtil.warn("You are running an outdated Java version, please update it to at least Java 17 (your version is " + javaVersion + ").");
-            LogUtil.warn("GrimAC will no longer support this version of Java in a future release.");
+            LogUtil.warn("Full GrimAC will no longer support this version of Java in a future release.");
             LogUtil.warn("See https://github.com/GrimAnticheat/Grim/wiki/Updating-to-Java-17 for more information.");
         }
     }

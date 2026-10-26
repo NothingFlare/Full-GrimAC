@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac.manager;
 
 import ac.grim.grimac.GrimAPI;
@@ -103,6 +109,21 @@ public class PunishmentManager implements ConfigReloadable {
                 }
 
                 groups.add(new PunishGroup(checksList, parsed, removeViolationsAfter * 1000));
+            }
+            // Fallback for checks not mapped to any punish group in punishments.yml:
+            // Ensure they are enabled and receive default 1:1 alert and log commands so they are never silently disabled!
+            List<AbstractCheck> unmapped = new ArrayList<>();
+            for (AbstractCheck check : player.getChecks()) {
+                if (!check.isEnabled()) {
+                    check.setEnabled(true);
+                    unmapped.add(check);
+                }
+            }
+            if (!unmapped.isEmpty()) {
+                List<ParsedCommand> defaultCommands = new ArrayList<>();
+                defaultCommands.add(new ParsedCommand(1, 1, "[alert]"));
+                defaultCommands.add(new ParsedCommand(1, 1, "[log]"));
+                groups.add(new PunishGroup(unmapped, defaultCommands, 300 * 1000));
             }
         } catch (Exception e) {
             LogUtil.error("Error while loading punishments.yml! This is likely your fault!", e);
