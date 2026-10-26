@@ -26,7 +26,7 @@ import java.util.Deque;
 )
 public class InventoryAutoClicker extends Check implements PacketReceiveListener {
 
-    private static final int MAX_CPS = 18;
+    private static final int MAX_CPS = 20;
     private final Deque<Long> clickTimestamps = new ArrayDeque<>();
     private final Deque<Long> intervals = new ArrayDeque<>();
     private long lastClickTime = 0;
@@ -103,27 +103,27 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                 long interval = now - lastClickTime;
                 if (interval >= 25 && interval <= 500) {
                     // Exact duplicate check (e.g. 200ms, 200ms, 200ms)
-                    if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 2) {
+                    if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 1) {
                         consecutiveDuplicates++;
-                        if (consecutiveDuplicates >= 3) {
+                        if (consecutiveDuplicates >= 7) {
                             consecutiveDuplicates = 0;
-                            flag("constant_delay: " + interval + "ms (x3)");
+                            flag("constant_delay: " + interval + "ms (x7)");
                         }
-                    } else {
-                        consecutiveDuplicates = Math.max(0, consecutiveDuplicates - 1);
+                    } else if (Math.abs(interval - lastInterval) > 2) {
+                        consecutiveDuplicates = 0;
                     }
                     lastInterval = interval;
 
                     intervals.addLast(interval);
-                    if (intervals.size() > 8) {
+                    if (intervals.size() > 15) {
                         intervals.pollFirst();
                     }
 
-                    if (intervals.size() >= 5) {
+                    if (intervals.size() >= 12) {
                         double mean = calculateMean(intervals);
                         double sd = calculateSD(intervals, mean);
-                        double maxSd = (mean < 120.0) ? 3.5 : (mean < 280.0 ? 5.0 : 6.5);
-                        if (sd < maxSd) {
+                        double maxSd = (mean < 100.0) ? 1.8 : 2.5;
+                        if (sd < maxSd && mean >= 35.0) {
                             flag("robotic_clicks: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
                         }
                     }
