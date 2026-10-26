@@ -204,7 +204,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
             // Deduplicate: if an attack packet was processed within the last 45ms, this swing belongs to it
             lastSwingTime = now;
-            if (now - lastAttackTime <= 45) {
+            if (now - lastAttackTime <= 20) {
                 return;
             }
 
@@ -225,7 +225,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         long now = System.currentTimeMillis();
         lastAttackTime = now;
         // Deduplicate: if a swing packet was processed within the last 45ms, this attack belongs to it
-        if (now - lastSwingTime <= 45) {
+        if (now - lastSwingTime <= 20) {
             return;
         }
 
@@ -328,10 +328,10 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
                     // Unrandomized software autoclickers maintain sd < 1.5ms across 16+ intervals.
                     // Legitimate jitter and butterfly clicking naturally produce sd > 2.5ms across 16 intervals.
-                    double maxAllowedSd = (mean < 80.0) ? 1.6 : (mean < 150.0 ? 2.0 : 2.5);
+                    double maxAllowedSd = (mean < 80.0) ? 1.2 : (mean < 150.0 ? 1.6 : 2.0);
                     if (sd < maxAllowedSd && mean >= 35.0) {
                         sdBuffer += 1.0;
-                        if (sdBuffer >= 2.0) {
+                        if (sdBuffer >= 4.0) {
                             sdBuffer = 1.0;
                             notifyBot();
                             flag("robotic_interval: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
