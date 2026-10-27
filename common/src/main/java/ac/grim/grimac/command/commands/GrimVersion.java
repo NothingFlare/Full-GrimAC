@@ -37,6 +37,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class GrimVersion implements BuildableCommand {
 
+    private static final String GITHUB_REPO_URL = "https://github.com/NothingFlare/Full-GrimAC";
+    private static final String GITHUB_RELEASES_URL = "https://github.com/NothingFlare/Full-GrimAC/releases";
+    private static final String GITHUB_RAW_VERSION_URL = "https://raw.githubusercontent.com/NothingFlare/Full-GrimAC/main/version.json";
+
     private static final AtomicReference<Component> updateMessage = new AtomicReference<>();
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.of(CommonGrimArguments.URL_TIMEOUT.value(), ChronoUnit.MILLIS))
@@ -60,51 +64,103 @@ public class GrimVersion implements BuildableCommand {
         GrimAPI.INSTANCE.getScheduler().getAsyncScheduler().runNow(GrimAPI.INSTANCE.getGrimPlugin(), () -> checkForUpdates(sender));
     }
 
-    // Using UserAgent format recommended by https://docs.modrinth.com/api/
     @SuppressWarnings("deprecation")
     private static void checkForUpdates(Sender sender) {
+        String current = GrimAPI.INSTANCE.getExternalAPI().getGrimVersion();
         try {
-            //
+            String apiUrl = CommonGrimArguments.API_URL.value();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(CommonGrimArguments.API_URL.value() + "updates"))
+                    .uri(URI.create(apiUrl))
                     .GET()
-                    .header("User-Agent", "GrimAC/" + GrimAPI.INSTANCE.getExternalAPI().getGrimVersion())
-                    .header("Content-Type", "application/json")
+                    .header("User-Agent", "FullGrimAC/" + current)
+                    .header("Accept", "application/vnd.github.v3+json, application/json")
                     .timeout(Duration.of(CommonGrimArguments.URL_TIMEOUT.value(), ChronoUnit.MILLIS))
                     .build();
 
             HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-            final int statusCode = response.statusCode();
+            int statusCode = response.statusCode();
+            String responseBody = response.body();
+
+            // Fallback: if GitHub Releases API returns 404 (no releases published yet), check raw version.json
+            if (statusCode == 404 && apiUrl.contains("api.github.com")) {
+                try {
+                    HttpRequest fallbackRequest = HttpRequest.newBuilder()
+                            .uri(URI.create(GITHUB_RAW_VERSION_URL))
+                            .GET()
+                            .header("User-Agent", "FullGrimAC/" + current)
+                            .timeout(Duration.of(CommonGrimArguments.URL_TIMEOUT.value(), ChronoUnit.MILLIS))
+                            .build();
+                    HttpResponse<String> fallbackResponse = HTTP_CLIENT.send(fallbackRequest, HttpResponse.BodyHandlers.ofString());
+                    if (fallbackResponse.statusCode() >= 200 && fallbackResponse.statusCode() < 300) {
+                        statusCode = fallbackResponse.statusCode();
+                        responseBody = fallbackResponse.body();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+
+            // If still 404 or empty releases, inform the user they are on the current repository version
+            if (statusCode == 404) {
+                Component msg = Component.text()
+                        .append(Component.text("You are running Full GrimAC ").color(NamedTextColor.GREEN))
+                        .append(Component.text("v" + current).color(NamedTextColor.AQUA))
+                        .append(Component.text(" (Repository: ").color(NamedTextColor.GRAY))
+                        .append(Component.text(GITHUB_REPO_URL).color(NamedTextColor.GRAY).decorate(TextDecoration.UNDERLINED)
+                                .clickEvent(ClickEvent.openUrl(GITHUB_REPO_URL)))
+                        .append(Component.text(")").color(NamedTextColor.GRAY))
+                        .build();
+                updateMessage.set(msg);
+                sender.sendMessage(msg);
+                return;
+            }
+
             if (statusCode < 200 || statusCode >= 300) {
+                final int finalCode = statusCode;
                 Component msg = updateMessage.get();
                 sender.sendMessage(Objects.requireNonNullElseGet(msg, () -> Component.text()
                         .append(MessageUtil.miniMessage("%prefix%"))
-                        .append(Component.text(" Failed to check latest Full GrimAC version. Update server responded with status code: ")
+                        .append(Component.text(" Failed to check latest Full GrimAC version from GitHub. Status code: ")
                                 .color(NamedTextColor.YELLOW))
-                        .append(Component.text(statusCode)
-                                .color(getColorForStatusCode(statusCode))
+                        .append(Component.text(finalCode)
+                                .color(getColorForStatusCode(finalCode))
                                 .decorate(TextDecoration.BOLD))
                         .build()));
                 return;
             }
-            // Using old JsonParser method, as old versions of Gson don't include the static one
-            JsonObject object = new JsonParser().parse(response.body()).getAsJsonObject();
-            String downloadPage = getJsonString(object, "download_page", "Unknown");
-            String latest = getJsonString(object, "latest_version", "Unknown");
+
+            JsonObject object = new JsonParser().parse(responseBody).getAsJsonObject();
+
+            // Extract latest version tag (supports GitHub Releases "tag_name" and custom "latest_version")
+            String latest = "Unknown";
+            if (object.has("tag_name")) {
+                String tag = object.get("tag_name").getAsString().trim();
+                latest = (tag.startsWith("v") || tag.startsWith("V")) ? tag.substring(1).trim() : tag;
+            } else if (object.has("latest_version")) {
+                latest = object.get("latest_version").getAsString().trim();
+            }
+
+            // Extract download/release URL
+            String downloadPage = GITHUB_RELEASES_URL;
+            if (object.has("html_url")) {
+                downloadPage = object.get("html_url").getAsString();
+            } else if (object.has("download_page")) {
+                downloadPage = object.get("download_page").getAsString();
+            }
+
             @Nullable String warning = getJsonString(object, "warning", null);
-            // allow status to be overridden if provided
+
             Status status;
             if (object.has("status")) {
                 status = Status.getStatus(object.get("status").getAsString());
             } else {
-                status = Status.SemVer.getVersionStatus(GrimAPI.INSTANCE.getExternalAPI().getGrimVersion(), latest);
+                status = Status.SemVer.getVersionStatus(current, latest);
             }
-            //
+
             Component msg = switch (status) {
                 case AHEAD ->
-                        Component.text("You are using a development version of Full GrimAC").color(NamedTextColor.LIGHT_PURPLE);
+                        Component.text("You are using a development version of Full GrimAC (" + current + ")").color(NamedTextColor.LIGHT_PURPLE);
                 case UPDATED ->
-                        Component.text("You are using the latest version of Full GrimAC").color(NamedTextColor.GREEN);
+                        Component.text("You are using the latest version of Full GrimAC (" + current + ")").color(NamedTextColor.GREEN);
                 case OUTDATED -> Component.text()
                         .append(Component.text("New Full GrimAC version found!").color(NamedTextColor.AQUA))
                         .append(Component.text(" Version ").color(NamedTextColor.GRAY))
@@ -114,17 +170,18 @@ public class GrimVersion implements BuildableCommand {
                                 .clickEvent(ClickEvent.openUrl(downloadPage)))
                         .build();
                 case UNKNOWN ->
-                        Component.text("You are using an unknown Full GrimAC version.").color(NamedTextColor.RED);
+                        Component.text("You are using Full GrimAC version " + current).color(NamedTextColor.GREEN);
             };
-            // in case of a critical exploit that requires attention, allow us to provide a warning
+
             if (warning != null && !warning.isBlank()) {
-                msg = msg.append(Component.text().append(Component.text(warning).color(NamedTextColor.RED)).build());
+                msg = msg.append(Component.text().append(Component.text(" Warning: " + warning).color(NamedTextColor.RED)).build());
             }
+
             updateMessage.set(msg);
             sender.sendMessage(msg);
         } catch (Exception e) {
-            sender.sendMessage(Component.text("Failed to check latest version.").color(NamedTextColor.RED));
-            LogUtil.error("Failed to check latest Full GrimAC version.", e);
+            sender.sendMessage(Component.text("Failed to check latest Full GrimAC version from GitHub.").color(NamedTextColor.RED));
+            LogUtil.error("Failed to check latest Full GrimAC version from GitHub.", e);
         }
     }
 
@@ -133,16 +190,16 @@ public class GrimVersion implements BuildableCommand {
     }
 
     private static NamedTextColor getColorForStatusCode(int code) {
-        if (code >= 500) { // Server Errors (e.g., 500, 503)
+        if (code >= 500) {
             return NamedTextColor.RED;
-        } else if (code >= 400) { // Client Errors (e.g., 403, 404)
+        } else if (code >= 400) {
             return NamedTextColor.RED;
-        } else if (code >= 300) { // Redirection (e.g., 301, 302)
+        } else if (code >= 300) {
             return NamedTextColor.YELLOW;
-        } else if (code >= 200) { // Success (e.g., 200, 201)
+        } else if (code >= 200) {
             return NamedTextColor.GREEN;
         }
-        return NamedTextColor.GRAY; // Default for 1xx codes or others
+        return NamedTextColor.GRAY;
     }
 
     @Override
@@ -159,7 +216,6 @@ public class GrimVersion implements BuildableCommand {
         Sender sender = context.sender();
         checkForUpdatesAsync(sender);
     }
-
 
     @AllArgsConstructor
     private enum Status {
