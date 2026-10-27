@@ -44,6 +44,10 @@ import java.util.UUID;
 )
 public class KillAuraBot extends Check implements PacketReceiveListener {
 
+    private static final int REQUIRED_SUSPICION = 8;
+    private static final int BOT_LIFETIME_TICKS = 12; // 0.6 seconds (discreet, fast test)
+    private static final int COOLDOWN_TICKS = 240;    // 12 seconds cooldown between tests
+
     private boolean botActive = false;
     private int currentBotId = 0;
     private UUID botUUID = null;
@@ -55,8 +59,8 @@ public class KillAuraBot extends Check implements PacketReceiveListener {
     private int suspicionScore = 0;
     private int lastTargetId = -1;
     private long lastTargetHitTime = 0;
+    private long lastDecayTime = 0;
     private float previousYaw = 0f;
-    private int consecutiveHits = 0;
 
     public KillAuraBot(GrimPlayer player) {
         super(player);
@@ -64,7 +68,7 @@ public class KillAuraBot extends Check implements PacketReceiveListener {
 
     public void addSuspicion(int amount) {
         suspicionScore += amount;
-        if (suspicionScore >= 2 && !botActive && spawnCooldown <= 0 && !PerformanceProtectionManager.shouldSkipKillAuraBots()) {
+        if (suspicionScore >= REQUIRED_SUSPICION && !botActive && spawnCooldown <= 0 && !PerformanceProtectionManager.shouldSkipKillAuraBots()) {
             spawnBot(lastTargetId != -1 ? lastTargetId : 0);
         }
     }
@@ -102,7 +106,7 @@ public class KillAuraBot extends Check implements PacketReceiveListener {
     private void handleAttack(PacketReceiveEvent event, int targetId) {
         long now = System.currentTimeMillis();
 
-        // Check if player attacked the invisible bot
+        // Check if player attacked the invisible bot behind them
         if (botActive && targetId == currentBotId) {
             if (flag("exploit=bot_hit, botId=" + currentBotId) && shouldModifyPackets()) {
                 event.setCancelled(true);
@@ -110,41 +114,34 @@ public class KillAuraBot extends Check implements PacketReceiveListener {
             }
             despawnBot();
             suspicionScore = 0;
-            spawnCooldown = 25;
+            spawnCooldown = 300; // 15s cooldown after positive detection
             return;
         }
 
         long diff = now - lastTargetHitTime;
 
-        // Suspicion heuristic: Multi-target switching in < 400ms
+        // Suspicion heuristic 1: Multi-target switching in impossible sub-tick window (< 75ms)
         if (lastTargetId != -1 && lastTargetId != targetId) {
-            if (diff < 400) {
+            if (diff < 75 && diff >= 0) {
                 suspicionScore += 2;
             }
         }
 
-        // Suspicion heuristic: rapid consecutive hits
-        if (diff < 350) {
-            consecutiveHits++;
-            if (consecutiveHits >= 2) {
-                suspicionScore += 1;
-            }
-        } else {
-            consecutiveHits = 1;
-        }
-
-        // Suspicion heuristic: Angular head snap (> 25 degrees)
+        // Suspicion heuristic 2: Impossible angular head snap (> 100 degrees within < 60ms between hits)
         float yawDiff = Math.abs(player.yaw - previousYaw);
-        if (yawDiff > 25.0f && yawDiff < 335.0f) {
-            suspicionScore += 1;
+        if (yawDiff > 180.0f) {
+            yawDiff = 360.0f - yawDiff;
+        }
+        if (yawDiff > 100.0f && diff < 60 && diff >= 0) {
+            suspicionScore += 2;
         }
 
         lastTargetId = targetId;
         lastTargetHitTime = now;
         previousYaw = player.yaw;
 
-        // Trigger bot when suspicion reaches threshold or combat is actively ongoing
-        if (suspicionScore >= 2 && !botActive && spawnCooldown <= 0 && !PerformanceProtectionManager.shouldSkipKillAuraBots()) {
+        // Trigger bot only when sustained suspicion threshold is met
+        if (suspicionScore >= REQUIRED_SUSPICION && !botActive && spawnCooldown <= 0 && !PerformanceProtectionManager.shouldSkipKillAuraBots()) {
             spawnBot(targetId);
         }
     }
@@ -154,6 +151,13 @@ public class KillAuraBot extends Check implements PacketReceiveListener {
             spawnCooldown--;
         }
 
+        long now = System.currentTimeMillis();
+        // Decay suspicion when outside active combat (every ~1s)
+        if (now - lastTargetHitTime > 3000 && suspicionScore > 0 && now - lastDecayTime >= 1000) {
+            lastDecayTime = now;
+            suspicionScore--;
+        }
+
         if (botActive) {
             if (PerformanceProtectionManager.shouldSkipKillAuraBots()) {
                 despawnBot();
@@ -161,17 +165,20 @@ public class KillAuraBot extends Check implements PacketReceiveListener {
             }
 
             botTicks++;
-            if (botTicks > 30) { // 1.5 seconds lifetime
+            if (botTicks > BOT_LIFETIME_TICKS) { // 0.6 seconds lifetime
                 despawnBot();
-                suspicionScore = Math.max(0, suspicionScore - 1);
-                spawnCooldown = 35; // cooldown before next test
+                suspicionScore = Math.max(0, suspicionScore - 4);
+                spawnCooldown = COOLDOWN_TICKS; // 12 seconds cooldown before next test
             } else {
-                // Update bot position smoothly orbiting in peripheral FOV (50-70 degrees)
-                double angle = player.yaw + (orbitSide * (55.0 + (botTicks * 1.5)));
+                // Position bot behind and above the player's head:
+                // 135° to 155° angle (completely outside camera FOV, behind the player's back)
+                // Height +1.8m (above eye level), distance 2.8m.
+                // Physically impossible for a legitimate player looking forward to see or hit!
+                double angle = player.yaw + 140.0 + (orbitSide * 15.0);
                 double rad = Math.toRadians(angle);
-                double dist = 2.4;
+                double dist = 2.8;
                 double botX = player.x + (-Math.sin(rad) * dist);
-                double botY = player.y + 0.3;
+                double botY = player.y + 1.8;
                 double botZ = player.z + (Math.cos(rad) * dist);
 
                 try {
@@ -204,21 +211,23 @@ public class KillAuraBot extends Check implements PacketReceiveListener {
             }
         }
 
-        double baseAngle = player.yaw + (orbitSide * 55.0);
+        // Place bot behind the player (140°) and above head (+1.8m), completely outside human FOV
+        double baseAngle = player.yaw + 140.0 + (orbitSide * 15.0);
         double rad = Math.toRadians(baseAngle);
-        double dist = 2.4;
+        double dist = 2.8;
         Vector3d botPos = new Vector3d(
                 player.x + (-Math.sin(rad) * dist),
-                player.y + 0.3,
+                player.y + 1.8,
                 player.z + (Math.cos(rad) * dist)
         );
 
         try {
             if (isPlayerBot) {
                 if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_19_3)) {
-                    UserProfile profile = new UserProfile(botUUID, "NPC_" + (currentBotId % 1000));
+                    UserProfile profile = new UserProfile(botUUID, "");
+                    // listed = false ensures the NPC is NEVER shown in the tab list!
                     WrapperPlayServerPlayerInfoUpdate.PlayerInfo entry = new WrapperPlayServerPlayerInfoUpdate.PlayerInfo(
-                            profile, false, 0, GameMode.SURVIVAL, null, null
+                            profile, false, 9999, GameMode.SURVIVAL, null, null
                     );
                     player.user.sendPacket(new WrapperPlayServerPlayerInfoUpdate(
                             EnumSet.of(WrapperPlayServerPlayerInfoUpdate.Action.ADD_PLAYER),
