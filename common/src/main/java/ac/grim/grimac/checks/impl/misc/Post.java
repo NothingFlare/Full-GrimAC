@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac.checks.impl.misc;
 
 import ac.grim.grimac.api.storage.verbose.Verbose;
@@ -53,6 +59,12 @@ public class Post extends Check implements PacketReceiveListener, PacketSendList
         if (player.isTickingReliablyFor(3)) {
             for (String flag : flags) {
                 flag(V.write(verbose()).str(flag));
+                if (flag.contains("interact")) {
+                    ac.grim.grimac.checks.impl.combat.KillAuraBot bot = player.checkManager.get(ac.grim.grimac.checks.impl.combat.KillAuraBot.class);
+                    if (bot != null) {
+                        bot.addSuspicion(2);
+                    }
+                }
             }
         }
 

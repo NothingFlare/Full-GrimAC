@@ -1,5 +1,5 @@
 # ===========================================================================
-#  Datastore di Grim
+#  Datastore di Full GrimAC
 #
 #  Instrada le categorie del DataStore (violation / session / player-identity /
 #  setting / blob) verso istanze di backend specifiche. Ogni backend elencato

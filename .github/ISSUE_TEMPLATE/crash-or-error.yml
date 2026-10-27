@@ -47,7 +47,6 @@ body:
       description: Which platforms does this issue affect? If you aren't sure, select both.
       options:
         - "Bukkit"
-        - "Fabric"
       multiple: true
     validations:
       required: true

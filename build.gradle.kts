@@ -1,5 +1,5 @@
 /**
- *          GrimAC Build Configuration
+ *          Full GrimAC Build Configuration
  *
  * Build Flags:
  * -PshadePE=true   - Enables 'lite' mode
@@ -14,16 +14,16 @@ import versioning.VersionUtil
 
 BuildConfig.init(project)
 
-val baseVersion = "2.3.75"
+val baseVersion = "1.1"
 group = "ac.grim.grimac"
-version = VersionUtil.computeVersion(project, baseVersion)
-description = "Libre simulation anticheat designed for 26.3 with 1.8–26.3 support, powered by PacketEvents 2.0."
+version = baseVersion
+description = "Full GrimAC - Advanced fork of GrimAC simulation anticheat with custom inventory, combat, and performance protections."
 
 ext["timestamp"] = System.currentTimeMillis().toString()
 ext["git_branch"] = VersionUtil.getGitBranch(project, true)
 ext["git_commit"] = VersionUtil.getGitCommitHash(project, true)
 ext["git_org"] = System.getenv("GRIM_GIT_ORG") ?: VersionUtil.getGitUser(project)
-ext["git_repo"] = System.getenv("GRIM_GIT_REPO") ?: "Grim"
+ext["git_repo"] = System.getenv("GRIM_GIT_REPO") ?: "FullGrimAC"
 
 println("Build configuration:")
 println("    shadePE            = ${BuildConfig.shadePE}")

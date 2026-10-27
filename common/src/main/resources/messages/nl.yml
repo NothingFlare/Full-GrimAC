@@ -1,5 +1,5 @@
 # \u00BB is » (double >>), ANSI en UTF-8 interpreteren dit anders... je kunt zelfs "?" zien als gevolg hiervan
-prefix: "&bGrim &8\u00BB"
+prefix: "&bFull GrimAC &8\u00BB"
 
 alerts-enabled: "%prefix% &fMeldingen ingeschakeld"
 alerts-disabled: "%prefix% &fMeldingen uitgeschakeld"
@@ -111,7 +111,7 @@ grim-history-crashed-marker: " &8(&cgecrasht&8)"
 #   %client_version% %client_brand% %duration% %timeago%
 #   %violations% %unique_checks% %bucket_size%
 grim-history-detail-header: "%prefix% &bDetails van sessie &f%ordinal% &bvan &f%player%&b:"
-grim-history-detail-meta1: "%prefix% &bGrim: &f%grim_version%&b, Server: &f%server_name%&b, Duur: &f%duration%&b, Datum: &7%timeago% geleden"
+grim-history-detail-meta1: "%prefix% &bFull GrimAC: &f%grim_version%&b, Server: &f%server_name%&b, Duur: &f%duration%&b, Datum: &7%timeago% geleden"
 grim-history-detail-meta2: "%prefix% &bClient: &f%client_version%&b, Merk: &f%client_brand%"
 grim-history-detail-violations-header: "%prefix% &bOvertredingen: &8(%violations% totaal, %unique_checks% uniek)"
 grim-history-detail-empty: "%prefix% &7- (geen)"

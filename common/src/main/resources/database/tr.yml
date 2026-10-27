@@ -1,5 +1,5 @@
 # ===========================================================================
-#  Grim datastore
+#  Full GrimAC datastore
 #
 #  DataStore kategorilerini (violation / session / player-identity / setting /
 #  blob) belirli backend örneklerine yönlendirir. `routing:` altında listelenen

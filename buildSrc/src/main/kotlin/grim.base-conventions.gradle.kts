@@ -66,7 +66,6 @@ tasks {
             listOf(
                 "bungee.yml",
                 "velocity-plugin.json",
-                "fabric.mod.json",
                 "grimac.properties"
             )
         ) {

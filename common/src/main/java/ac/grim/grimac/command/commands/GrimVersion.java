@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
+
 package ac.grim.grimac.command.commands;
 
 import ac.grim.grimac.GrimAPI;
@@ -39,7 +46,7 @@ public class GrimVersion implements BuildableCommand {
     public static void checkForUpdatesAsync(Sender sender) {
         String current = GrimAPI.INSTANCE.getExternalAPI().getGrimVersion();
         sender.sendMessage(Component.text()
-                .append(Component.text("Grim Version: ").color(NamedTextColor.GRAY))
+                .append(Component.text("Full GrimAC Version: ").color(NamedTextColor.GRAY))
                 .append(Component.text(current).color(NamedTextColor.AQUA))
                 .build());
         // use cached message if last check was less than 1 minute ago
@@ -72,7 +79,7 @@ public class GrimVersion implements BuildableCommand {
                 Component msg = updateMessage.get();
                 sender.sendMessage(Objects.requireNonNullElseGet(msg, () -> Component.text()
                         .append(MessageUtil.miniMessage("%prefix%"))
-                        .append(Component.text(" Failed to check latest GrimAC version. Update server responded with status code: ")
+                        .append(Component.text(" Failed to check latest Full GrimAC version. Update server responded with status code: ")
                                 .color(NamedTextColor.YELLOW))
                         .append(Component.text(statusCode)
                                 .color(getColorForStatusCode(statusCode))
@@ -95,11 +102,11 @@ public class GrimVersion implements BuildableCommand {
             //
             Component msg = switch (status) {
                 case AHEAD ->
-                        Component.text("You are using a development version of GrimAC").color(NamedTextColor.LIGHT_PURPLE);
+                        Component.text("You are using a development version of Full GrimAC").color(NamedTextColor.LIGHT_PURPLE);
                 case UPDATED ->
-                        Component.text("You are using the latest version of GrimAC").color(NamedTextColor.GREEN);
+                        Component.text("You are using the latest version of Full GrimAC").color(NamedTextColor.GREEN);
                 case OUTDATED -> Component.text()
-                        .append(Component.text("New GrimAC version found!").color(NamedTextColor.AQUA))
+                        .append(Component.text("New Full GrimAC version found!").color(NamedTextColor.AQUA))
                         .append(Component.text(" Version ").color(NamedTextColor.GRAY))
                         .append(Component.text(latest).color(NamedTextColor.GRAY).decorate(TextDecoration.ITALIC))
                         .append(Component.text(" is available to be downloaded here: ").color(NamedTextColor.GRAY))
@@ -107,7 +114,7 @@ public class GrimVersion implements BuildableCommand {
                                 .clickEvent(ClickEvent.openUrl(downloadPage)))
                         .build();
                 case UNKNOWN ->
-                        Component.text("You are using an unknown GrimAC version.").color(NamedTextColor.RED);
+                        Component.text("You are using an unknown Full GrimAC version.").color(NamedTextColor.RED);
             };
             // in case of a critical exploit that requires attention, allow us to provide a warning
             if (warning != null && !warning.isBlank()) {
@@ -117,7 +124,7 @@ public class GrimVersion implements BuildableCommand {
             sender.sendMessage(msg);
         } catch (Exception e) {
             sender.sendMessage(Component.text("Failed to check latest version.").color(NamedTextColor.RED));
-            LogUtil.error("Failed to check latest GrimAC version.", e);
+            LogUtil.error("Failed to check latest Full GrimAC version.", e);
         }
     }
 
@@ -141,7 +148,7 @@ public class GrimVersion implements BuildableCommand {
     @Override
     public void register(CommandManager<Sender> commandManager, CloudPlatformCommandArguments arguments) {
         commandManager.command(
-                commandManager.commandBuilder("grim", "grimac")
+                commandManager.commandBuilder("grim", "grimac", "fullgrimac", "fgrim")
                         .literal("version")
                         .permission("grim.version")
                         .handler(this::handleVersion)

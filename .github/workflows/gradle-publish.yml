@@ -37,7 +37,6 @@ on:
         paths:
             - 'bukkit/**'
             - 'common/**'
-            - 'fabric/**'
             - '**.java'
             - '**.kt'
             - '**.kts'
@@ -48,14 +47,8 @@ jobs:
         with:
             runner: ${{ github.event.inputs.runner || 'ix' }}
             is-release-build: false
-            release-version-type: alpha # Dev builds are always 'alpha'
+            publish-artifacts: ${{ github.event.inputs.publish-artifacts == 'true' || github.event.inputs.publish-artifacts == null }}
+            use-modrinth-fallback: ${{ github.event.inputs.use-modrinth-fallback == 'true' || github.event.inputs.use-modrinth-fallback == null }}
             run-build-scan: ${{ github.event.inputs.run-build-scan == 'true' }}
-            publish-artifacts: ${{ github.event.inputs.publish-artifacts != 'false' }}
-            use-modrinth-fallback: ${{ github.event.inputs.use-modrinth-fallback != 'false' }}
             refresh-gradle-cache: ${{ github.event.inputs.refresh-gradle-cache == 'true' }}
-        secrets:
-            GRADLE_ENCRYPTION_KEY: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
-            MODRINTH_ID: ${{ secrets.MODRINTH_ID }}
-            MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-            BUILD_UPDATE_TOKEN: ${{ secrets.BUILD_UPDATE_TOKEN }}
-            BUILD_UPDATE_URL: ${{ secrets.BUILD_UPDATE_URL }}
+        secrets: inherit

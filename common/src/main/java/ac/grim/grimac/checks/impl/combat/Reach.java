@@ -1,18 +1,9 @@
-// This file was designed and is an original check for GrimAC
-// Copyright (C) 2021 DefineOutside
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac.checks.impl.combat;
 
 import ac.grim.grimac.api.config.ConfigManager;
@@ -233,21 +224,31 @@ public class Reach extends Check implements PacketReceiveListener {
             InteractionData interactionData = attack.getValue();
             CheckResult result = checkReach(reachEntity, interactionData.x, interactionData.y, interactionData.z, interactionData.hasAttackRange, interactionData.maxReach, interactionData.hitboxMargin, interactionData.attackRangeMovement, false);
             switch (result.type()) {
-                case REACH -> flag(
-                        V.write(verbose()).f64(result.minDistance()).uint(Math.max(0, reachEntity.getType().getId(PacketEvents.getAPI().getServerManager().getVersion().toClientVersion()))),
-                        () -> {
-                            String added = ", type=" + reachEntity.getType().getName().getKey();
-                            if (reachEntity instanceof PacketEntitySizeable sizeable) {
-                                added += ", size=" + sizeable.size;
-                            }
-                            return result.verbose() + added;
-                        });
+                case REACH -> {
+                    flag(
+                            V.write(verbose()).f64(result.minDistance()).uint(Math.max(0, reachEntity.getType().getId(PacketEvents.getAPI().getServerManager().getVersion().toClientVersion()))),
+                            () -> {
+                                String added = ", type=" + reachEntity.getType().getName().getKey();
+                                if (reachEntity instanceof PacketEntitySizeable sizeable) {
+                                    added += ", size=" + sizeable.size;
+                                }
+                                return result.verbose() + added;
+                            });
+                    KillAuraBot bot = player.checkManager.get(KillAuraBot.class);
+                    if (bot != null) {
+                        bot.addSuspicion(2);
+                    }
+                }
                 case HITBOX -> {
                     String added = "type=" + reachEntity.getType().getName().getKey();
                     if (reachEntity instanceof PacketEntitySizeable sizeable) {
                         added += ", size=" + sizeable.size;
                     }
                     player.checkManager.get(Hitboxes.class).flag(result.verbose() + added);
+                    KillAuraBot bot = player.checkManager.get(KillAuraBot.class);
+                    if (bot != null) {
+                        bot.addSuspicion(2);
+                    }
                 }
             }
         }
@@ -307,7 +308,11 @@ public class Reach extends Check implements PacketReceiveListener {
         if ((!blacklisted.contains(reachEntity.getType()) && reachEntity.isLivingEntity) || reachEntity.getType() == EntityTypes.END_CRYSTAL) {
             if (minDistance == Double.MAX_VALUE) {
                 cancelBuffer = 1;
-                return new CheckResult(ResultType.HITBOX, 0, 0, false);
+                double minBoxDist = ReachUtils.getMinReachToBox(player, targetBox);
+                if (minBoxDist > maxReach) {
+                    return new CheckResult(ResultType.REACH, minBoxDist, movementAllowance, attackRangeMovement != null);
+                }
+                return new CheckResult(ResultType.HITBOX, minBoxDist, 0, false);
             } else if (minDistance > maxReach) {
                 cancelBuffer = 1;
                 return new CheckResult(ResultType.REACH, minDistance, movementAllowance, attackRangeMovement != null);
@@ -387,15 +392,16 @@ public class Reach extends Check implements PacketReceiveListener {
         }
 
         public String verbose() {
-            if (type != ResultType.REACH) {
-                return "";
+            if (type == ResultType.REACH) {
+                String verbose = String.format("%.5f", minDistance) + " blocks";
+                if (hasExtraMovement) {
+                    verbose += String.format(", extraMovement=%.5f", extraMovement);
+                }
+                return verbose;
+            } else if (type == ResultType.HITBOX) {
+                return String.format("dist=%.2f, missed_raycast, ", minDistance);
             }
-
-            String verbose = String.format("%.5f", minDistance) + " blocks";
-            if (hasExtraMovement) {
-                verbose += String.format(", extraMovement=%.5f", extraMovement);
-            }
-            return verbose;
+            return "";
         }
     }
 

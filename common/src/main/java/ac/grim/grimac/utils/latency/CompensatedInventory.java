@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac.utils.latency;
 
 import ac.grim.grimac.checks.GrimProcessor;
@@ -52,7 +58,12 @@ public class CompensatedInventory extends GrimProcessor implements PacketReceive
     public boolean isPacketInventoryActive = true;
     public boolean needResend = false;
     public int stateID = 0; // Don't mess up the last sent state ID by changing it
+    @Getter
     private int openWindowID = 0;
+
+    public boolean isContainerOpen() {
+        return openWindowID != 0;
+    }
     // Special values:
     // Player inventory is -1
     // Unsupported inventory is -2
@@ -237,6 +248,21 @@ public class CompensatedInventory extends GrimProcessor implements PacketReceive
                 inventory.setHeldItem(null);
                 inventory.getInventoryStorage().handleClientClaimedSlotSet(Inventory.HOTBAR_OFFSET + player.packetStateData.lastSlotSelected);
             }
+
+            if (dig.getAction() == DiggingAction.SWAP_ITEM_WITH_OFFHAND) {
+                player.packetStateData.lastOffhandSwapTime = System.currentTimeMillis();
+                if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_9)) {
+                    int hotbarSlot = Inventory.HOTBAR_OFFSET + inventory.getSelected();
+                    ItemStack currentMain = inventory.getHeldItem();
+                    ItemStack currentOff = inventory.getOffhand();
+
+                    inventory.getInventoryStorage().handleClientClaimedSlotSet(hotbarSlot);
+                    inventory.getInventoryStorage().setItem(hotbarSlot, currentOff == null ? ItemStack.EMPTY : currentOff.copy());
+
+                    inventory.getInventoryStorage().handleClientClaimedSlotSet(Inventory.SLOT_OFFHAND);
+                    inventory.getInventoryStorage().setItem(Inventory.SLOT_OFFHAND, currentMain == null ? ItemStack.EMPTY : currentMain.copy());
+                }
+            }
         } else if (event.getPacketType() == PacketType.Play.Client.HELD_ITEM_CHANGE) {
             final int slot = new WrapperPlayClientHeldItemChange(event).getSlot();
 
@@ -245,6 +271,8 @@ public class CompensatedInventory extends GrimProcessor implements PacketReceive
 
             // set this before we change the selected slot so we get the previous item held
             this.startOfTickStack = getHeldItem();
+            player.packetStateData.previousSlot = player.packetStateData.lastSlotSelected;
+            player.packetStateData.lastHeldItemChangeTime = System.currentTimeMillis();
             inventory.setSelected(slot);
         } else if (event.getPacketType() == PacketType.Play.Client.CREATIVE_INVENTORY_ACTION) {
             WrapperPlayClientCreativeInventoryAction action = new WrapperPlayClientCreativeInventoryAction(event);
@@ -258,8 +286,17 @@ public class CompensatedInventory extends GrimProcessor implements PacketReceive
                 inventory.getSlot(action.getSlot()).set(action.getItemStack());
                 inventory.getInventoryStorage().handleClientClaimedSlotSet(action.getSlot());
             }
+        } else if (event.getPacketType() == PacketType.Play.Client.PICK_ITEM) {
+            player.packetStateData.lastPickItemTime = System.currentTimeMillis();
+        } else if (event.getPacketType() == PacketType.Play.Client.ATTACK || event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY) {
+            player.packetStateData.lastAttackPacketTime = System.currentTimeMillis();
+        } else if (event.getPacketType() == PacketType.Play.Client.PLAYER_BLOCK_PLACEMENT) {
+            player.packetStateData.lastBlockPlacePacketTime = System.currentTimeMillis();
         } else if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW && !event.isCancelled()) {
             WrapperPlayClientClickWindow click = new WrapperPlayClientClickWindow(event);
+            player.packetStateData.lastWindowClickTime = System.currentTimeMillis();
+            player.packetStateData.lastWindowClickSlot = click.getSlot();
+            player.packetStateData.lastWindowClickButton = click.getButton();
 
             // How is this possible? Maybe transaction splitting.
             if (click.getWindowId() != openWindowID) {

@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac.manager;
 
 import ac.grim.grimac.GrimAPI;
@@ -20,6 +26,7 @@ import ac.grim.grimac.checks.impl.elytra.*;
 import ac.grim.grimac.checks.impl.exploit.ExploitA;
 import ac.grim.grimac.checks.impl.exploit.ExploitB;
 import ac.grim.grimac.checks.impl.groundspoof.NoFall;
+import ac.grim.grimac.checks.impl.inventory.*;
 import ac.grim.grimac.checks.impl.misc.ClientBrand;
 import ac.grim.grimac.checks.impl.misc.GhostBlockMitigation;
 import ac.grim.grimac.checks.impl.misc.Post;
@@ -38,6 +45,7 @@ import ac.grim.grimac.checks.impl.scaffolding.*;
 import ac.grim.grimac.checks.impl.sprint.*;
 import ac.grim.grimac.checks.impl.timer.*;
 import ac.grim.grimac.checks.impl.vehicle.*;
+import ac.grim.grimac.checks.impl.world.*;
 import ac.grim.grimac.checks.impl.velocity.ExplosionHandler;
 import ac.grim.grimac.checks.impl.velocity.KnockbackHandler;
 import ac.grim.grimac.checks.type.*;
@@ -140,6 +148,13 @@ public class CheckManager implements BasicReloadable {
                 .put(BadPacketsU.class, new BadPacketsU(player))
                 .put(BadPacketsV.class, new BadPacketsV(player))
                 .put(MultiActionsC.class, new MultiActionsC(player))
+                .put(AutoTotem.class, new AutoTotem(player))
+                .put(InventoryAutoClicker.class, new InventoryAutoClicker(player))
+                .put(InventoryAction.class, new InventoryAction(player))
+                .put(CombatAutoClicker.class, new CombatAutoClicker(player))
+                .put(KillAuraBot.class, new KillAuraBot(player))
+                .put(AntiXray.class, new AntiXray(player))
+                .put(ac.grim.grimac.checks.impl.misc.ComparativeAnomaly.class, new ac.grim.grimac.checks.impl.misc.ComparativeAnomaly(player))
                 .put(MultiActionsD.class, new MultiActionsD(player))
                 .put(PacketOrderO.class, new PacketOrderO(player))
 //                .put(PacketOrderP.class, new PacketOrderP(player))

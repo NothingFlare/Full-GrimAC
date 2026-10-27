@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
+
 package ac.grim.grimac.utils.anticheat;
 
 import ac.grim.grimac.GrimAPI;
@@ -154,7 +161,7 @@ public class MessageUtil {
     }
 
     public @NotNull Component miniMessage(@NotNull String string, TagResolver... resolvers) {
-        string = string.replace("%prefix%", GrimAPI.INSTANCE.getConfigManager().getConfig().getStringElse("prefix", "&bGrim &8»"));
+        string = string.replace("%prefix%", GrimAPI.INSTANCE.getConfigManager().getConfig().getStringElse("prefix", "&bFull GrimAC »"));
 
         // hex codes
         Matcher matcher = HEX_PATTERN.matcher(string);

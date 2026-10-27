@@ -1,5 +1,5 @@
 # ===========================================================================
-#  Grim-Datenspeicher
+#  Full GrimAC-Datenspeicher
 #
 #  Routet die DataStore-Kategorien (violation / session / player-identity /
 #  setting / blob) an konkrete Backend-Instanzen. Jedes in `routing:`

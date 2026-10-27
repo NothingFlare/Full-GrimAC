@@ -48,7 +48,7 @@ Punishments:
     checks:
       - "Post"
     commands:
-      - "20:20 [alert]"
+      - "3:3 [alert]"
       - "1:1 [log]"
       - "40:40 [webhook]"
       - "40:40 [proxy]"
@@ -77,10 +77,10 @@ Punishments:
     checks:
       - "Hitboxes"
     commands:
-      - "5:3 [alert]"
+      - "1:1 [alert]"
       - "1:1 [log]"
-      - "5:3 [webhook]"
-      - "5:3 [proxy]"
+      - "1:1 [webhook]"
+      - "1:1 [proxy]"
   Misc:
     remove-violations-after: 300
     checks:
@@ -106,7 +106,7 @@ Punishments:
       - "Interact"
       - "Aim"
     commands:
-      - "20:40 [alert]"
+      - "1:1 [alert]"
       - "1:1 [log]"
   # Начиная с версии 2.2.10, проверки на AutoClicker отсутствуют, на их месте пока используется placeholder. Grim будет включать проверки AutoClicker в будущем.
   Autoclicker:
@@ -115,4 +115,33 @@ Punishments:
       - "Autoclicker"
     commands:
       - "20:40 [alert]"
+      - "1:1 [log]"
+  Inventory:
+    remove-violations-after: 300
+    checks:
+      - "AutoTotem"
+      - "InventoryAutoClicker"
+      - "InventoryAction"
+    commands:
+      - "1:1 [alert]"
+      - "1:1 [log]"
+      - "5:5 [webhook]"
+      - "5:5 [proxy]"
+  CombatDetection:
+    remove-violations-after: 300
+    checks:
+      - "CombatAutoClicker"
+      - "KillAuraBot"
+    commands:
+      - "1:1 [alert]"
+      - "1:1 [log]"
+      - "5:5 [webhook]"
+      - "5:5 [proxy]"
+  Special:
+    remove-violations-after: 300
+    checks:
+      - "AntiXray"
+      - "ComparativeAnomaly"
+    commands:
+      - "1:1 [alert]"
       - "1:1 [log]"

@@ -1,5 +1,5 @@
 # ===========================================================================
-#  Grim データストア
+#  Full GrimAC データストア
 #
 #  DataStore のカテゴリ（violation / session / player-identity / setting /
 #  blob）を具体的なバックエンドインスタンスにルーティングします。`routing:`

@@ -23,8 +23,11 @@ repositories {
         includeModule("com.mojang", "brigadier")
     }
 
-    exclusive("https://repo.extendedclip.com/content/repositories/placeholderapi/") {
-        includeGroup("me.clip")
+    exclusiveContent {
+        forRepositories(*listOfNotNull(localOverride, maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")).toTypedArray())
+        filter {
+            includeGroup("me.clip")
+        }
     }
 
     val grimPublicReleases = maven("https://maven.grim.ac/public/releases") {
@@ -133,8 +136,9 @@ dependencies {
 }
 
 bukkit {
-    name = "GrimAC"
-    author = "GrimAC"
+    name = "FullGrimAC"
+    version = "1.1"
+    author = "GrimAC Team & NothingFlare"
     main = "ac.grim.grimac.platform.bukkit.GrimACBukkitLoaderPlugin"
     website = "https://grim.ac/"
     apiVersion = "1.13"
@@ -274,6 +278,7 @@ tasks {
     }
 
     shadowJar {
+        archiveFileName.set("FullGrimAC-1.1.jar")
         exclude("META-INF/services/javax.annotation.processing.Processor")
 
         if (!BuildConfig.shadePE) {

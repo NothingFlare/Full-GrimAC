@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2020-2024 GrimAC Team
+ * Copyright (C) 2026 NothingFlare (Modifications)
+ *
+ * Licensed under GNU GPLv3.
+ */
 package ac.grim.grimac.platform.api;
 
 import lombok.AllArgsConstructor;
@@ -7,7 +13,6 @@ import org.jetbrains.annotations.Nullable;
 @AllArgsConstructor
 public enum Platform {
 
-    FABRIC("fabric"),
     BUKKIT("bukkit"),
     FOLIA("folia");
 
