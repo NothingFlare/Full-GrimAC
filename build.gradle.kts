@@ -14,7 +14,7 @@ import versioning.VersionUtil
 
 BuildConfig.init(project)
 
-val baseVersion = "1.3"
+val baseVersion = "1.4"
 group = "ac.grim.grimac"
 version = baseVersion
 description = "Full GrimAC - Advanced fork of GrimAC simulation anticheat with custom inventory, combat, and performance protections."
