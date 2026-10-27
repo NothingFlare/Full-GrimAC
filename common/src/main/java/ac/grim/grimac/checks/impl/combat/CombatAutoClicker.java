@@ -33,15 +33,19 @@ import java.util.Deque;
 )
 public class CombatAutoClicker extends Check implements PacketReceiveListener, BlockBreakListener {
 
-    private static final int MAX_CPS = 18;
+    private static final int MAX_CPS = 22;
     private final Deque<Long> clickTimestamps = new ArrayDeque<>();
     private final Deque<Long> intervals = new ArrayDeque<>();
     private long lastClickTime = 0;
+    private long lastSwingTime = 0;
+    private long lastAttackTime = 0;
     private long lastInterval = 0;
     private int lastTickDiff = 0;
     private int zeroDelayCount = 0;
     private int consecutiveDuplicateIntervals = 0;
     private int identicalTickCount = 0;
+    private double cpsBuffer = 0.0;
+    private double sdBuffer = 0.0;
 
     // Block mining / placement tracking to prevent false flags when digging blocks
     private boolean isDiggingBlock = false;
@@ -65,11 +69,15 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         clickTimestamps.clear();
         intervals.clear();
         lastClickTime = 0;
+        lastSwingTime = 0;
+        lastAttackTime = 0;
         lastInterval = 0;
         lastTickDiff = 0;
         zeroDelayCount = 0;
         consecutiveDuplicateIntervals = 0;
         identicalTickCount = 0;
+        cpsBuffer = 0;
+        sdBuffer = 0;
     }
 
     private boolean isPlayerDigging(long now) {
@@ -193,6 +201,12 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 return;
             }
 
+            // Deduplicate: if an attack packet was processed within the last 45ms, this swing belongs to it
+            lastSwingTime = now;
+            if (now - lastAttackTime <= 45) {
+                return;
+            }
+
             handleClick(event);
         }
     }
@@ -207,22 +221,27 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
             }
         }
 
-        // If attack packet arrived without an arm animation within the last 40ms, process click
         long now = System.currentTimeMillis();
-        if (now - lastClickTime > 40) {
-            handleClick(event);
+        lastAttackTime = now;
+        // Deduplicate: if a swing packet was processed within the last 45ms, this attack belongs to it
+        if (now - lastSwingTime <= 45) {
+            return;
         }
+
+        handleClick(event);
     }
 
     private void handleClick(PacketReceiveEvent event) {
         long now = System.currentTimeMillis();
 
-        // 1. Zero-delay clicks (two clicks within <= 10ms is physiologically impossible)
+        // 1. Zero-delay clicks:
+        // Butterfly clicking can produce legitimate double clicks (~8-15ms), but consecutive
+        // zero-delay packets (diff <= 5ms) without any gap indicate an unthrottled macro or packet flood.
         if (lastClickTime > 0) {
             long diff = now - lastClickTime;
-            if (diff <= 10) {
+            if (diff <= 5) {
                 zeroDelayCount++;
-                if (zeroDelayCount >= 3) {
+                if (zeroDelayCount >= 6) {
                     zeroDelayCount = 0;
                     notifyBot();
                     if (flag("zero_delay=" + diff + "ms") && shouldModifyPackets()) {
@@ -231,12 +250,12 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                         return;
                     }
                 }
-            } else {
-                zeroDelayCount = Math.max(0, zeroDelayCount - 1);
+            } else if (diff > 25) {
+                zeroDelayCount = 0;
             }
         }
 
-        // 2. Sliding 1-second CPS check
+        // 2. Sliding 1-second CPS check with buffer for human burst allowance
         clickTimestamps.addLast(now);
         while (!clickTimestamps.isEmpty() && now - clickTimestamps.peekFirst() > 1000) {
             clickTimestamps.pollFirst();
@@ -244,12 +263,18 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
         int cps = clickTimestamps.size();
         if (cps > MAX_CPS) {
-            notifyBot();
-            if (flag("cps=" + cps) && shouldModifyPackets()) {
-                event.setCancelled(true);
-                player.onPacketCancel();
-                return;
+            cpsBuffer += (cps - MAX_CPS);
+            if (cpsBuffer >= 4.0) {
+                cpsBuffer = 0;
+                notifyBot();
+                if (flag("cps=" + cps) && shouldModifyPackets()) {
+                    event.setCancelled(true);
+                    player.onPacketCancel();
+                    return;
+                }
             }
+        } else {
+            cpsBuffer = Math.max(0, cpsBuffer - 1.0);
         }
 
         // 3. Robotic consistency & interval pattern checks
@@ -257,24 +282,28 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
             long interval = now - lastClickTime;
 
             if (interval >= 25 && interval <= 500) {
-                // 3a. Exact duplicate interval check (e.g. 200ms, 200ms, 200ms, 200ms)
-                if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 2) {
+                // 3a. Exact constant delay check (e.g. 50ms, 50ms, 50ms)
+                // Real autoclickers have exact 0-1ms variation across many clicks.
+                // Require at least 8 consecutive identical intervals.
+                if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 1) {
                     consecutiveDuplicateIntervals++;
-                    if (consecutiveDuplicateIntervals >= 4) {
+                    if (consecutiveDuplicateIntervals >= 8) {
                         consecutiveDuplicateIntervals = 0;
                         notifyBot();
-                        flag("constant_delay: " + interval + "ms (x4)");
+                        flag("constant_delay: " + interval + "ms (x8)");
                     }
-                } else {
-                    consecutiveDuplicateIntervals = Math.max(0, consecutiveDuplicateIntervals - 1);
+                } else if (Math.abs(interval - lastInterval) > 2) {
+                    consecutiveDuplicateIntervals = 0;
                 }
                 lastInterval = interval;
 
-                // 3b. Fixed tick delta check (e.g. 4 ticks, 4 ticks, 4 ticks = 200ms tick-locked autoclicker)
+                // 3b. Fixed tick delta check (strictly 1 tick = 50ms or 2 ticks = 100ms)
+                // Cheats only lock to 1 tick (20 CPS) or 2 ticks (10 CPS).
+                // Never check 3+ ticks (150ms+), which is completely normal human rhythmic clicking!
                 int tickDiff = (int) Math.round((double) interval / 50.0);
-                if (lastTickDiff > 0 && tickDiff == lastTickDiff && tickDiff >= 1 && tickDiff <= 10 && Math.abs(interval - (tickDiff * 50)) <= 8) {
+                if (lastTickDiff > 0 && tickDiff == lastTickDiff && (tickDiff == 1 || tickDiff == 2) && Math.abs(interval - (tickDiff * 50)) <= 3) {
                     identicalTickCount++;
-                    if (identicalTickCount >= 5) {
+                    if (identicalTickCount >= 12) {
                         identicalTickCount = 0;
                         notifyBot();
                         flag("tick_locked: " + tickDiff + " ticks (~" + (tickDiff * 50) + "ms)");
@@ -284,23 +313,30 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 }
                 lastTickDiff = tickDiff;
 
-                // 3c. Standard deviation across rolling window
+                // 3c. Standard deviation across a statistically significant rolling window (20+ samples)
                 intervals.addLast(interval);
-                if (intervals.size() > 12) {
+                if (intervals.size() > 25) {
                     intervals.pollFirst();
                 }
 
-                if (intervals.size() >= 8) {
+                if (intervals.size() >= 20) {
                     double mean = calculateMean(intervals);
                     double sd = calculateSD(intervals, mean);
                     player.packetStateData.currentClickStdDev = sd;
                     player.packetStateData.currentMeanInterval = mean;
 
-                    // Expanded to cover 25ms - 500ms (includes 200ms delay):
-                    double maxAllowedSd = (mean < 120.0) ? 4.0 : (mean < 280.0 ? 5.5 : 7.0);
-                    if (sd < maxAllowedSd) {
-                        notifyBot();
-                        flag("robotic_interval: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
+                    // Unrandomized software autoclickers maintain sd < 1.5ms across 20+ intervals.
+                    // Legitimate jitter and butterfly clicking naturally produce sd > 2.5ms across 20 intervals.
+                    double maxAllowedSd = (mean < 80.0) ? 1.6 : (mean < 150.0 ? 2.0 : 2.5);
+                    if (sd < maxAllowedSd && mean >= 35.0) {
+                        sdBuffer += 1.0;
+                        if (sdBuffer >= 3.0) {
+                            sdBuffer = 0;
+                            notifyBot();
+                            flag("robotic_interval: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
+                        }
+                    } else if (sd > maxAllowedSd + 2.0) {
+                        sdBuffer = Math.max(0, sdBuffer - 0.5);
                     }
                 }
             } else if (interval > 500) {
@@ -309,6 +345,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 identicalTickCount = 0;
                 lastInterval = 0;
                 lastTickDiff = 0;
+                sdBuffer = 0;
             }
         }
 
@@ -320,6 +357,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         int count = 0;
         for (long v : values) {
             sum += v;
+            count++;
         }
         return count == 0 ? 0 : (double) sum / count;
     }
@@ -329,6 +367,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         int count = 0;
         for (long v : values) {
             sum += Math.pow(v - mean, 2);
+            count++;
         }
         return count == 0 ? 0 : Math.sqrt(sum / count);
     }
