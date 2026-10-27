@@ -26,7 +26,7 @@ import java.util.Deque;
 )
 public class InventoryAutoClicker extends Check implements PacketReceiveListener {
 
-    private static final int MAX_CPS = 24;
+    private static final int MAX_CPS = 20;
     private final Deque<Long> clickTimestamps = new ArrayDeque<>();
     private final Deque<Long> intervals = new ArrayDeque<>();
     private long lastClickTime = 0;
@@ -72,7 +72,7 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                 long diff = now - lastClickTime;
                 if (diff <= 5) {
                     zeroDelayCount++;
-                    if (zeroDelayCount >= 6) {
+                    if (zeroDelayCount >= 4) {
                         zeroDelayCount = 0;
                         if (flag("zero_delay=" + diff + "ms") && shouldModifyPackets()) {
                             event.setCancelled(true);
@@ -95,7 +95,7 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                 int cps = clickTimestamps.size();
                 if (cps > MAX_CPS) {
                     cpsBuffer += (cps - MAX_CPS);
-                    if (cpsBuffer >= 4.0) {
+                    if (cpsBuffer >= 2.0) {
                         cpsBuffer = 0;
                         if (flag("cps=" + cps) && shouldModifyPackets()) {
                             event.setCancelled(true);
@@ -115,9 +115,9 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                     // Exact duplicate check
                     if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 1) {
                         consecutiveDuplicates++;
-                        if (consecutiveDuplicates >= 9) {
+                        if (consecutiveDuplicates >= 7) {
                             consecutiveDuplicates = 0;
-                            flag("constant_delay: " + interval + "ms (x9)");
+                            flag("constant_delay: " + interval + "ms (x7)");
                         }
                     } else if (Math.abs(interval - lastInterval) > 2) {
                         consecutiveDuplicates = 0;
@@ -125,14 +125,14 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                     lastInterval = interval;
 
                     intervals.addLast(interval);
-                    if (intervals.size() > 20) {
+                    if (intervals.size() > 18) {
                         intervals.pollFirst();
                     }
 
-                    if (intervals.size() >= 16) {
+                    if (intervals.size() >= 14) {
                         double mean = calculateMean(intervals);
                         double sd = calculateSD(intervals, mean);
-                        double maxSd = (mean < 100.0) ? 1.4 : 1.8;
+                        double maxSd = (mean < 100.0) ? 1.5 : 2.0;
                         if (sd < maxSd && mean >= 35.0) {
                             flag("robotic_clicks: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
                         }
