@@ -20,7 +20,6 @@ import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientCl
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow.WindowClickType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientHeldItemChange;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerDigging;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -32,8 +31,8 @@ import java.util.Deque;
 )
 public class AutoTotem extends Check implements PacketReceiveListener {
 
-    private static final long MIN_LEGIT_REACTION_MS = 120L;
-    private static final long MAX_EXPLOIT_SEQUENCE_MS = 60L;
+    private static final long MIN_LEGIT_REACTION_MS = 50L;
+    private static final long MAX_EXPLOIT_SEQUENCE_MS = 40L;
 
     private int fastSwapSequence = 0;
     private long firstSwapTime = 0;
@@ -74,15 +73,15 @@ public class AutoTotem extends Check implements PacketReceiveListener {
         long now = System.currentTimeMillis();
         WrapperPlayClientHeldItemChange held = new WrapperPlayClientHeldItemChange(event);
 
-        // Detect silent totem swap return: switched to totem, swapped with F, now immediately switching back
-        if (silentSwapCandidate && (now - silentSwapTime <= 45)) {
+        // Detect silent totem swap return: switched to totem, swapped with F, now immediately switching back in <= 35ms
+        if (silentSwapCandidate && (now - silentSwapTime <= 35)) {
             if (held.getSlot() == silentSwapPrevSlot) {
                 silentSwapCandidate = false;
                 long totalDuration = now - player.packetStateData.lastHeldItemChangeTime;
                 if (flag("exploit=silent_totem_swap, duration=" + totalDuration + "ms") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
-                    resyncHands();
+                    InventoryResync.resync(player);
                 }
             }
         }
@@ -103,14 +102,14 @@ public class AutoTotem extends Check implements PacketReceiveListener {
             return;
         }
 
-        // Sub-tick multi-swap (two totem swaps in <= 25ms)
+        // Sub-tick multi-swap (two totem swaps in <= 15ms)
         if (lastSwapPacketTime > 0) {
             long diff = now - lastSwapPacketTime;
-            if (diff <= 25 && diff >= 0) {
+            if (diff <= 15 && diff >= 0) {
                 if (flag("exploit=subtick_multiswap, diff=" + diff + "ms") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
-                    resyncHands();
+                    InventoryResync.resync(player);
                     return;
                 }
             }
@@ -119,17 +118,17 @@ public class AutoTotem extends Check implements PacketReceiveListener {
 
         // If mainHand is a totem, the player is equipping a totem into offhand via F
         if (mainIsTotem) {
-            // 1. Silent totem swap initiation: swap within 35ms of slot switch
+            // 1. Silent totem swap initiation: swap within 25ms of slot switch
             if (player.packetStateData.lastHeldItemChangeTime > 0) {
                 long slotDiff = now - player.packetStateData.lastHeldItemChangeTime;
-                if (slotDiff <= 35 && slotDiff >= 0) {
+                if (slotDiff <= 25 && slotDiff >= 0) {
                     silentSwapCandidate = true;
                     silentSwapTime = now;
                     silentSwapPrevSlot = player.packetStateData.previousSlot;
                 }
             }
 
-            // 2. PickItem exploit sequence: SWAP -> PICK -> SWAP in <= 60ms
+            // 2. PickItem exploit sequence: SWAP -> PICK -> SWAP in <= 40ms
             if (fastSwapSequence == 0) {
                 fastSwapSequence = 1;
                 firstSwapTime = now;
@@ -140,7 +139,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                     if (flag("exploit=pick_item_swap, total=" + totalTime + "ms") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
-                        resyncHands();
+                        InventoryResync.resync(player);
                         return;
                     }
                 }
@@ -174,7 +173,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
 
         // 1. Mouse Drag Detection (TotemGuard AutoTotemA):
         // Detects cheats that pick up a totem with mouse (PICKUP on slot X) and immediately drop it
-        // into offhand (PICKUP on slot 45) in < 75ms (impossible human mouse travel).
+        // into offhand (PICKUP on slot 45) in < 45ms (impossible human mouse travel).
         // This does NOT apply to the 'F' key (SWAP with button 40), which is a native 1-packet hotkey!
         if (clickType == WindowClickType.PICKUP) {
             if (!isOffhandSlot && (slotIsTotem || carriedIsTotem)) {
@@ -184,11 +183,11 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                 if (player.packetStateData.lastTotemTouchTime > 0 && player.packetStateData.lastTotemTouchSlot != slot) {
                     long touchDiff = now - player.packetStateData.lastTotemTouchTime;
                     player.packetStateData.lastTotemTouchTime = 0;
-                    if (touchDiff >= 0 && touchDiff < 75) {
+                    if (touchDiff >= 0 && touchDiff < 45) {
                         if (flag("exploit=instant_totem_transfer, diff=" + touchDiff + "ms") && shouldModifyPackets()) {
                             event.setCancelled(true);
                             player.onPacketCancel();
-                            resyncHands();
+                            InventoryResync.resync(player);
                             return;
                         }
                     }
@@ -208,7 +207,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
         if (player.packetStateData.serverTotemPopTime > 0) {
             long elapsed = now - player.packetStateData.serverTotemPopTime;
             long ping = Math.max(0, (long) player.getTransactionPing());
-            long minLegitTime = Math.max(75L, ping + 60L);
+            long minLegitTime = Math.max(45L, (ping / 2) + 25L);
 
             if (elapsed >= 0 && elapsed < minLegitTime) {
                 player.packetStateData.serverTotemPopTime = 0;
@@ -217,7 +216,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                 if (flag("fast_swap=" + elapsed + "ms, min=" + minLegitTime + "ms, ping=" + ping + "ms") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
-                    resyncHands();
+                    InventoryResync.resync(player);
                 }
                 return;
             } else if (elapsed >= 2000) {
@@ -237,7 +236,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                     if (flag("fast_swap=" + elapsed + "ms") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
-                        resyncHands();
+                        InventoryResync.resync(player);
                     }
                     return;
                 }
@@ -252,10 +251,10 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                     swapIntervals.pollFirst();
                 }
 
-                if (swapIntervals.size() >= 3) {
+                if (swapIntervals.size() >= 4) {
                     double mean = calculateMean(swapIntervals);
                     double sd = calculateSD(swapIntervals, mean);
-                    if (sd < 6.0 && mean < 180.0) {
+                    if (sd < 2.0 && mean < 90.0) {
                         flag("consistent_sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
                     }
                 }
@@ -271,14 +270,6 @@ public class AutoTotem extends Check implements PacketReceiveListener {
             if (item != null) return item;
         }
         return ItemStack.EMPTY;
-    }
-
-    private void resyncHands() {
-        if (player.user == null) return;
-        ItemStack mainHand = player.platformPlayer != null ? player.platformPlayer.getInventory().getItemInHand() : player.inventory.getHeldItem();
-        ItemStack offHand = player.platformPlayer != null ? player.platformPlayer.getInventory().getItemInOffHand() : player.inventory.getOffHand();
-        player.user.sendPacket(new WrapperPlayServerSetSlot(0, player.inventory.stateID, 45, offHand == null ? ItemStack.EMPTY : offHand));
-        player.user.sendPacket(new WrapperPlayServerSetSlot(0, player.inventory.stateID, 36 + player.packetStateData.lastSlotSelected, mainHand == null ? ItemStack.EMPTY : mainHand));
     }
 
     private static boolean isTotem(ItemStack stack) {
