@@ -36,12 +36,13 @@ public class InventoryAction extends Check implements PacketReceiveListener {
         if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW) {
             long now = System.currentTimeMillis();
 
-            // Check if player attacked an entity in the same tick / recent window
+            // Check if player attacked an entity in the exact same sub-tick window (< 15ms)
             long attackDelta = Math.abs(now - player.packetStateData.lastAttackPacketTime);
-            if (player.packetStateData.lastAttackPacketTime > 0 && attackDelta < 30) {
+            if (player.packetStateData.lastAttackPacketTime > 0 && attackDelta < 15) {
                 if (flag("action=attack, delta=" + attackDelta + "ms") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
+                    InventoryResync.resync(player);
                 }
             }
 
@@ -50,6 +51,7 @@ public class InventoryAction extends Check implements PacketReceiveListener {
                 if (flag("action=using_item") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
+                    InventoryResync.resync(player);
                 }
             }
         } else if (event.getPacketType() == PacketType.Play.Client.ATTACK) {
@@ -65,10 +67,11 @@ public class InventoryAction extends Check implements PacketReceiveListener {
     private void handleAttackAfterClick(PacketReceiveEvent event) {
         long now = System.currentTimeMillis();
         long clickDelta = Math.abs(now - player.packetStateData.lastWindowClickTime);
-        if (player.packetStateData.lastWindowClickTime > 0 && clickDelta < 30) {
+        if (player.packetStateData.lastWindowClickTime > 0 && clickDelta < 15) {
             if (flag("action=attack_after_click, delta=" + clickDelta + "ms") && shouldModifyPackets()) {
                 event.setCancelled(true);
                 player.onPacketCancel();
+                InventoryResync.resync(player);
             }
         }
     }

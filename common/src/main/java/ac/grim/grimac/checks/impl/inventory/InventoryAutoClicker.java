@@ -26,13 +26,14 @@ import java.util.Deque;
 )
 public class InventoryAutoClicker extends Check implements PacketReceiveListener {
 
-    private static final int MAX_CPS = 20;
+    private static final int MAX_CPS = 24;
     private final Deque<Long> clickTimestamps = new ArrayDeque<>();
     private final Deque<Long> intervals = new ArrayDeque<>();
     private long lastClickTime = 0;
     private long lastInterval = 0;
     private int zeroDelayCount = 0;
     private int consecutiveDuplicates = 0;
+    private double cpsBuffer = 0.0;
 
     public InventoryAutoClicker(GrimPlayer player) {
         super(player);
@@ -56,6 +57,7 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                 if (flag("closed_window=" + windowId) && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
+                    InventoryResync.resync(player);
                 }
                 return;
             }
@@ -65,16 +67,17 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
             // PICKUP_ALL (double click to collect items sends pickup + pickup_all in 0ms)
             boolean isVanillaMultiAction = (clickType == WindowClickType.QUICK_CRAFT || clickType == WindowClickType.PICKUP_ALL);
 
-            // 2. Zero-delay / double click check for standard individual clicks (PICKUP, SWAP, etc.)
+            // 2. Zero-delay / double click check for standard individual clicks (diff <= 5ms)
             if (!isVanillaMultiAction && lastClickTime > 0) {
                 long diff = now - lastClickTime;
-                if (diff <= 10) {
+                if (diff <= 5) {
                     zeroDelayCount++;
-                    if (zeroDelayCount >= 4) {
+                    if (zeroDelayCount >= 6) {
                         zeroDelayCount = 0;
                         if (flag("zero_delay=" + diff + "ms") && shouldModifyPackets()) {
                             event.setCancelled(true);
                             player.onPacketCancel();
+                            InventoryResync.resync(player);
                         }
                     }
                 } else {
@@ -82,7 +85,7 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                 }
             }
 
-            // 3. CPS Check in sliding 1-second window
+            // 3. CPS Check in sliding 1-second window with burst buffer allowance
             if (!isVanillaMultiAction) {
                 clickTimestamps.addLast(now);
                 while (!clickTimestamps.isEmpty() && now - clickTimestamps.peekFirst() > 1000) {
@@ -91,23 +94,30 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
 
                 int cps = clickTimestamps.size();
                 if (cps > MAX_CPS) {
-                    if (flag("cps=" + cps) && shouldModifyPackets()) {
-                        event.setCancelled(true);
-                        player.onPacketCancel();
+                    cpsBuffer += (cps - MAX_CPS);
+                    if (cpsBuffer >= 4.0) {
+                        cpsBuffer = 0;
+                        if (flag("cps=" + cps) && shouldModifyPackets()) {
+                            event.setCancelled(true);
+                            player.onPacketCancel();
+                            InventoryResync.resync(player);
+                        }
                     }
+                } else {
+                    cpsBuffer = Math.max(0, cpsBuffer - 1.0);
                 }
             }
 
-            // 4. Robotic interval & duplicate consistency check (up to 500ms, including 200ms)
+            // 4. Robotic interval & duplicate consistency check
             if (!isVanillaMultiAction && lastClickTime > 0) {
                 long interval = now - lastClickTime;
                 if (interval >= 25 && interval <= 500) {
-                    // Exact duplicate check (e.g. 200ms, 200ms, 200ms)
+                    // Exact duplicate check
                     if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 1) {
                         consecutiveDuplicates++;
-                        if (consecutiveDuplicates >= 7) {
+                        if (consecutiveDuplicates >= 9) {
                             consecutiveDuplicates = 0;
-                            flag("constant_delay: " + interval + "ms (x7)");
+                            flag("constant_delay: " + interval + "ms (x9)");
                         }
                     } else if (Math.abs(interval - lastInterval) > 2) {
                         consecutiveDuplicates = 0;
@@ -115,14 +125,14 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                     lastInterval = interval;
 
                     intervals.addLast(interval);
-                    if (intervals.size() > 15) {
+                    if (intervals.size() > 20) {
                         intervals.pollFirst();
                     }
 
-                    if (intervals.size() >= 12) {
+                    if (intervals.size() >= 16) {
                         double mean = calculateMean(intervals);
                         double sd = calculateSD(intervals, mean);
-                        double maxSd = (mean < 100.0) ? 1.8 : 2.5;
+                        double maxSd = (mean < 100.0) ? 1.4 : 1.8;
                         if (sd < maxSd && mean >= 35.0) {
                             flag("robotic_clicks: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
                         }
@@ -150,7 +160,8 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
         double sum = 0;
         int count = 0;
         for (long v : values) {
-            sum += Math.pow(v - mean, 2);
+            double diff = v - mean;
+            sum += diff * diff;
             count++;
         }
         return count == 0 ? 0 : Math.sqrt(sum / count);
