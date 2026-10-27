@@ -46,24 +46,43 @@ public class MultiActionsC extends Check implements PacketReceiveListener {
         boolean sneaking = isVerboseSneaking(player);
         boolean input = isVerboseInput(player);
 
-        // Relaxed movement checks:
-        // 1. Shift-clicking in inventory is completely legitimate; never penalize sneaking alone!
-        // 2. In-air movement (jumping, falling), swimming, or vehicle riding are normal vanilla momentum.
-        boolean isActivelyMoving = (sprinting || input)
-                && player.clientClaimsLastOnGround
-                && !player.isSwimming
-                && !player.isGliding;
+        // Check physical movement displacement in the world (catches walking/jumping on 1.21.1 and older clients)
+        double dx = player.x - player.lastX;
+        double dz = player.z - player.lastZ;
+        double hDistSq = dx * dx + dz * dz;
 
-        if (!isActivelyMoving) {
-            buffer = Math.max(0.0, buffer - 1.0);
+        // Ignore displacement caused by external forces (water flow, knockback, explosions) or vehicles
+        boolean isPushed = player.wasTouchingWater
+                || player.wasWasTouchingWater
+                || player.firstBreadKB != null
+                || player.likelyKB != null
+                || player.firstBreadExplosion != null
+                || player.likelyExplosions != null;
+        boolean isRiding = player.inVehicle();
+
+        // Player is actively walking, running, or jumping in the world
+        boolean movingInWorld = hDistSq > 0.008 && !isPushed && !player.isGliding && !player.isSwimming && !isRiding;
+
+        // Sneaking alone while stationary is legitimate shift-clicking in chests/crafting;
+        // only treat sneaking as moving if the player is also actively moving across the world or sending inputs.
+        boolean sneakMoving = sneaking && (movingInWorld || input);
+
+        boolean isMoving = sprinting || input || movingInWorld || sneakMoving;
+
+        if (!isMoving) {
+            buffer = Math.max(0.0, buffer - 0.5);
             return;
         }
 
-        // 3. Buffer allowance: allow legitimate quick 1-3 clicks during residual momentum or quick swaps.
-        // Only trigger on sustained, blatant inventory walking (4+ consecutive moving clicks).
-        buffer += 1.0;
-        if (buffer >= 4.0) {
-            buffer = 2.0;
+        // Active movement detection:
+        // - Direct movement input (WASD/jump in GUI is impossible in vanilla) adds 1.5 (immediate flag).
+        // - Sprinting or physical world displacement adds 1.0 (gives 1 grace click for network tick boundaries,
+        //   then immediately flags and cancels on the 2nd moving click).
+        double increment = input ? 1.5 : 1.0;
+        buffer += increment;
+
+        if (buffer >= 1.5) {
+            buffer = 1.5;
             if (flag(V.write(verbose()).bool(sprinting).bool(sneaking).bool(input)) && shouldModifyPackets()) {
                 event.setCancelled(true);
                 player.onPacketCancel();
