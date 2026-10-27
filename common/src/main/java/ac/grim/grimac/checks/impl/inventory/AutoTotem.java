@@ -8,9 +8,7 @@ package ac.grim.grimac.checks.impl.inventory;
 
 import ac.grim.grimac.checks.Check;
 import ac.grim.grimac.checks.CheckData;
-import ac.grim.grimac.checks.impl.multiactions.MultiActionsC;
 import ac.grim.grimac.checks.type.PacketReceiveListener;
-import ac.grim.grimac.checks.type.PrePredictionPacketReceiveListener;
 import ac.grim.grimac.manager.performance.PerformanceProtectionManager;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.inventory.Inventory;
@@ -32,7 +30,7 @@ import java.util.Deque;
         stableKey = "grim.inventory.autototem",
         description = "Equipped totem with impossible timing, sequence, or consistency"
 )
-public class AutoTotem extends Check implements PrePredictionPacketReceiveListener, PacketReceiveListener {
+public class AutoTotem extends Check implements PacketReceiveListener {
 
     private static final long MIN_LEGIT_REACTION_MS = 120L;
     private static final long MAX_EXPLOIT_SEQUENCE_MS = 60L;
@@ -53,21 +51,10 @@ public class AutoTotem extends Check implements PrePredictionPacketReceiveListen
     }
 
     @Override
-    public void onPrePredictionPacketReceive(PacketReceiveEvent event) {
-        processIncomingPacket(event);
-    }
-
-    @Override
     public void onPacketReceive(PacketReceiveEvent event) {
-        if (!event.isCancelled()) {
-            processIncomingPacket(event);
-        }
-    }
+        if (player.disableGrim || event.isCancelled()) return;
 
-    private void processIncomingPacket(PacketReceiveEvent event) {
-        if (player.disableGrim) return;
-
-        // 1. Offhand swap packet (F key)
+        // 1. Offhand swap packet (F key in-world)
         if (event.getPacketType() == PacketType.Play.Client.PLAYER_DIGGING) {
             WrapperPlayClientPlayerDigging digging = new WrapperPlayClientPlayerDigging(event);
             if (digging.getAction() == DiggingAction.SWAP_ITEM_WITH_OFFHAND) {
@@ -105,17 +92,18 @@ public class AutoTotem extends Check implements PrePredictionPacketReceiveListen
         long now = System.currentTimeMillis();
         player.packetStateData.lastOffhandSwapTime = now;
 
-        // 1. Swap while using item (shield, food, bow)
-        if (player.packetStateData.isSlowedByUsingItem()) {
-            if (flag("exploit=swap_while_using_item") && shouldModifyPackets()) {
-                event.setCancelled(true);
-                player.onPacketCancel();
-                resyncHands();
-                return;
-            }
+        ItemStack mainHand = player.inventory.getHeldItem();
+        ItemStack offHand = player.inventory.getOffHand();
+        boolean mainIsTotem = isTotem(mainHand);
+        boolean offIsTotem = isTotem(offHand);
+
+        // If neither hand involves a totem, this is a legitimate weapon or item swap (spear, sword, tool, shield, food).
+        // AutoTotem must NEVER interfere with non-totem weapon swaps or legitimate rapid F-key hotkeys.
+        if (!mainIsTotem && !offIsTotem) {
+            return;
         }
 
-        // 2. Sub-tick multi-swap (two swaps in <= 25ms)
+        // Sub-tick multi-swap (two totem swaps in <= 25ms)
         if (lastSwapPacketTime > 0) {
             long diff = now - lastSwapPacketTime;
             if (diff <= 25 && diff >= 0) {
@@ -129,53 +117,38 @@ public class AutoTotem extends Check implements PrePredictionPacketReceiveListen
         }
         lastSwapPacketTime = now;
 
-        // 3. Silent totem swap initiation: swap within 35ms of slot switch
-        if (player.packetStateData.lastHeldItemChangeTime > 0) {
-            long slotDiff = now - player.packetStateData.lastHeldItemChangeTime;
-            if (slotDiff <= 35 && slotDiff >= 0) {
-                silentSwapCandidate = true;
-                silentSwapTime = now;
-                silentSwapPrevSlot = player.packetStateData.previousSlot;
-                if (flag("exploit=instant_hotbar_swap, diff=" + slotDiff + "ms") && shouldModifyPackets()) {
-                    event.setCancelled(true);
-                    player.onPacketCancel();
-                    resyncHands();
-                    return;
+        // If mainHand is a totem, the player is equipping a totem into offhand via F
+        if (mainIsTotem) {
+            // 1. Silent totem swap initiation: swap within 35ms of slot switch
+            if (player.packetStateData.lastHeldItemChangeTime > 0) {
+                long slotDiff = now - player.packetStateData.lastHeldItemChangeTime;
+                if (slotDiff <= 35 && slotDiff >= 0) {
+                    silentSwapCandidate = true;
+                    silentSwapTime = now;
+                    silentSwapPrevSlot = player.packetStateData.previousSlot;
                 }
             }
-        }
 
-        // 4. Instant damage-triggered swap (< 60ms from entity hurt)
-        if (player.packetStateData.lastDamageTime > 0) {
-            long dmgDiff = now - player.packetStateData.lastDamageTime;
-            if (dmgDiff < 60 && dmgDiff >= 0 && player.packetStateData.serverTotemPopTime == 0) {
-                if (flag("exploit=damage_instant_swap, diff=" + dmgDiff + "ms") && shouldModifyPackets()) {
-                    event.setCancelled(true);
-                    player.onPacketCancel();
-                    resyncHands();
-                    return;
+            // 2. PickItem exploit sequence: SWAP -> PICK -> SWAP in <= 60ms
+            if (fastSwapSequence == 0) {
+                fastSwapSequence = 1;
+                firstSwapTime = now;
+            } else if (fastSwapSequence == 2) {
+                long totalTime = now - firstSwapTime;
+                fastSwapSequence = 0;
+                if (totalTime <= MAX_EXPLOIT_SEQUENCE_MS && totalTime >= 0) {
+                    if (flag("exploit=pick_item_swap, total=" + totalTime + "ms") && shouldModifyPackets()) {
+                        event.setCancelled(true);
+                        player.onPacketCancel();
+                        resyncHands();
+                        return;
+                    }
                 }
             }
-        }
 
-        // 5. PickItem exploit sequence: SWAP -> PICK -> SWAP in <= 60ms
-        if (fastSwapSequence == 0) {
-            fastSwapSequence = 1;
-            firstSwapTime = now;
-        } else if (fastSwapSequence == 2) {
-            long totalTime = now - firstSwapTime;
-            fastSwapSequence = 0;
-            if (totalTime <= MAX_EXPLOIT_SEQUENCE_MS && totalTime >= 0) {
-                if (flag("exploit=pick_item_swap, total=" + totalTime + "ms") && shouldModifyPackets()) {
-                    event.setCancelled(true);
-                    player.onPacketCancel();
-                    resyncHands();
-                    return;
-                }
-            }
+            // 3. Reaction timing check after totem pop
+            checkTotemSwapTiming(event, now);
         }
-
-        checkTotemSwapTiming(event, now);
     }
 
     private void handlePickItem() {
@@ -194,64 +167,38 @@ public class AutoTotem extends Check implements PrePredictionPacketReceiveListen
 
         boolean isOffhandSlot = (click.getWindowId() == 0 && slot == Inventory.SLOT_OFFHAND);
         boolean isOffhandSwap = (clickType == WindowClickType.SWAP && button == 40);
-        boolean clickedIsTotem = isTotem(click.getCarriedItemStack());
-        if (!clickedIsTotem && click.getSlots().isPresent()) {
-            for (ItemStack s : click.getSlots().get().values()) {
-                if (isTotem(s)) {
-                    clickedIsTotem = true;
-                    break;
-                }
-            }
-        }
-        boolean currentOffhandIsTotem = isTotem(player.inventory.getOffHand())
-                || (player.platformPlayer != null && isTotem(player.platformPlayer.getInventory().getItemInOffHand()));
-        boolean involvesTotem = isOffhandSlot || isOffhandSwap || clickedIsTotem || currentOffhandIsTotem;
 
-        // 1. Moving / Sprinting Inventory Click Check (Vanilla clients cannot move while inventory GUI is open)
-        if (isMoving(player)) {
-            // Any inventory interaction while physically moving/sprinting is impossible in vanilla
-            if (flag("exploit=moving_inventory_click, slot=" + slot + ", button=" + button) && shouldModifyPackets()) {
-                event.setCancelled(true);
-                player.onPacketCancel();
-                resyncHands();
-                return;
-            }
-        }
+        ItemStack slotItem = getInventoryItem(slot);
+        boolean slotIsTotem = isTotem(slotItem);
+        boolean carriedIsTotem = isTotem(click.getCarriedItemStack());
 
-        // 2. Track when a totem is clicked or picked up from the inventory
-        if (!isOffhandSlot && (clickedIsTotem || isTotem(getInventoryItem(slot)))) {
-            player.packetStateData.lastTotemTouchTime = now;
-            player.packetStateData.lastTotemTouchSlot = slot;
-        }
-
-        // 3. TotemGuard AutoTotemA: Instant totem-to-offhand transfer (< 75ms)
-        if (isOffhandSlot || isOffhandSwap) {
-            if (player.packetStateData.lastTotemTouchTime > 0) {
-                long touchDiff = now - player.packetStateData.lastTotemTouchTime;
-                if (touchDiff >= 0 && touchDiff < 75) {
-                    if (flag("exploit=instant_totem_transfer, diff=" + touchDiff + "ms") && shouldModifyPackets()) {
-                        event.setCancelled(true);
-                        player.onPacketCancel();
-                        resyncHands();
-                        return;
+        // 1. Mouse Drag Detection (TotemGuard AutoTotemA):
+        // Detects cheats that pick up a totem with mouse (PICKUP on slot X) and immediately drop it
+        // into offhand (PICKUP on slot 45) in < 75ms (impossible human mouse travel).
+        // This does NOT apply to the 'F' key (SWAP with button 40), which is a native 1-packet hotkey!
+        if (clickType == WindowClickType.PICKUP) {
+            if (!isOffhandSlot && (slotIsTotem || carriedIsTotem)) {
+                player.packetStateData.lastTotemTouchTime = now;
+                player.packetStateData.lastTotemTouchSlot = slot;
+            } else if (isOffhandSlot) {
+                if (player.packetStateData.lastTotemTouchTime > 0 && player.packetStateData.lastTotemTouchSlot != slot) {
+                    long touchDiff = now - player.packetStateData.lastTotemTouchTime;
+                    player.packetStateData.lastTotemTouchTime = 0;
+                    if (touchDiff >= 0 && touchDiff < 75) {
+                        if (flag("exploit=instant_totem_transfer, diff=" + touchDiff + "ms") && shouldModifyPackets()) {
+                            event.setCancelled(true);
+                            player.onPacketCancel();
+                            resyncHands();
+                            return;
+                        }
                     }
                 }
             }
         }
 
-        // 4. In-world combat attack within 50ms of inventory click
-        long attackDiff = Math.abs(now - player.packetStateData.lastAttackPacketTime);
-        if (attackDiff < 50 && player.packetStateData.lastAttackPacketTime > 0) {
-            if (flag("exploit=combat_while_inventory, diff=" + attackDiff + "ms") && shouldModifyPackets()) {
-                event.setCancelled(true);
-                player.onPacketCancel();
-                resyncHands();
-                return;
-            }
-        }
-
-        // 5. Check totem pop reaction timing
-        if (involvesTotem) {
+        // 2. Check totem pop reaction timing ONLY if this click actually equips a totem to offhand
+        boolean equipsTotemToOffhand = (isOffhandSwap && slotIsTotem) || (isOffhandSlot && (carriedIsTotem || slotIsTotem));
+        if (equipsTotemToOffhand) {
             checkTotemSwapTiming(event, now);
         }
     }
@@ -316,20 +263,6 @@ public class AutoTotem extends Check implements PrePredictionPacketReceiveListen
                 player.packetStateData.lastTotemPopTime = 0;
             }
         }
-    }
-
-    public static boolean isMoving(GrimPlayer player) {
-        if (player.isSprinting && (!player.isSwimming || !player.clientClaimsLastOnGround)) return true;
-        if (MultiActionsC.isVerboseInput(player)) return true;
-        double dx = player.x - player.lastX;
-        double dz = player.z - player.lastZ;
-        if ((dx * dx + dz * dz) > 0.0004) return true;
-        if (player.actualMovement != null) {
-            double ax = player.actualMovement.getX();
-            double az = player.actualMovement.getZ();
-            if ((ax * ax + az * az) > 0.0004) return true;
-        }
-        return false;
     }
 
     private ItemStack getInventoryItem(int slot) {
