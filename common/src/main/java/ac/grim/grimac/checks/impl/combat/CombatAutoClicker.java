@@ -35,6 +35,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
     private static final int MAX_CPS = 22;
     private final Deque<Long> clickTimestamps = new ArrayDeque<>();
+    private final Deque<Long> startDiggingTimestamps = new ArrayDeque<>();
     private final Deque<Long> intervals = new ArrayDeque<>();
     private long lastClickTime = 0;
     private long lastSwingTime = 0;
@@ -67,6 +68,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
     private void resetClickHistory() {
         clickTimestamps.clear();
+        startDiggingTimestamps.clear();
         intervals.clear();
         lastClickTime = 0;
         lastSwingTime = 0;
@@ -107,12 +109,10 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
             case START_DIGGING -> {
                 isDiggingBlock = true;
                 lastDiggingStartTime = now;
-                resetClickHistory();
             }
             case FINISHED_DIGGING, CANCELLED_DIGGING -> {
                 isDiggingBlock = false;
                 lastDiggingEndTime = now;
-                resetClickHistory();
             }
         }
     }
@@ -130,12 +130,19 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 isDiggingBlock = true;
                 lastDiggingStartTime = now;
                 lastDiggingPacketTime = now;
-                resetClickHistory();
+
+                startDiggingTimestamps.addLast(now);
+                while (!startDiggingTimestamps.isEmpty() && now - startDiggingTimestamps.peekFirst() > 1000) {
+                    startDiggingTimestamps.pollFirst();
+                }
+                if (startDiggingTimestamps.size() > 8) {
+                    notifyBot();
+                    flag("block_autoclicker: start_digging cps=" + startDiggingTimestamps.size());
+                }
             } else if (action == DiggingAction.FINISHED_DIGGING || action == DiggingAction.CANCELLED_DIGGING) {
                 isDiggingBlock = false;
                 lastDiggingEndTime = now;
                 lastDiggingPacketTime = now;
-                resetClickHistory();
             }
             return;
         }
@@ -196,15 +203,20 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 return;
             }
 
-            // Completely ignore swings while digging or breaking blocks
-            if (isPlayerDigging(now)) {
-                return;
-            }
-
             // Deduplicate: if an attack packet was processed within the last 45ms, this swing belongs to it
             lastSwingTime = now;
             if (now - lastAttackTime <= 45) {
                 return;
+            }
+
+            // While actively holding left click to mine a block, the vanilla client automatically sends
+            // an arm swing every 4 ticks (~200ms). Ignore these automatic mining swings so they don't false flag.
+            if ((isDiggingBlock || isPlayerDigging(now)) && lastClickTime > 0) {
+                long interval = now - lastClickTime;
+                if (Math.abs(interval - 200) <= 35) {
+                    lastClickTime = now;
+                    return;
+                }
             }
 
             handleClick(event);
@@ -288,9 +300,9 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 1) {
                     consecutiveDuplicateIntervals++;
                     if (consecutiveDuplicateIntervals >= 8) {
-                        consecutiveDuplicateIntervals = 0;
+                        consecutiveDuplicateIntervals = 4;
                         notifyBot();
-                        flag("constant_delay: " + interval + "ms (x8)");
+                        flag("constant_delay: " + interval + "ms");
                     }
                 } else if (Math.abs(interval - lastInterval) > 2) {
                     consecutiveDuplicateIntervals = 0;
@@ -303,8 +315,8 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 int tickDiff = (int) Math.round((double) interval / 50.0);
                 if (lastTickDiff > 0 && tickDiff == lastTickDiff && (tickDiff == 1 || tickDiff == 2) && Math.abs(interval - (tickDiff * 50)) <= 3) {
                     identicalTickCount++;
-                    if (identicalTickCount >= 12) {
-                        identicalTickCount = 0;
+                    if (identicalTickCount >= 10) {
+                        identicalTickCount = 6;
                         notifyBot();
                         flag("tick_locked: " + tickDiff + " ticks (~" + (tickDiff * 50) + "ms)");
                     }
@@ -315,23 +327,23 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
                 // 3c. Standard deviation across a statistically significant rolling window (20+ samples)
                 intervals.addLast(interval);
-                if (intervals.size() > 25) {
+                if (intervals.size() > 20) {
                     intervals.pollFirst();
                 }
 
-                if (intervals.size() >= 20) {
+                if (intervals.size() >= 16) {
                     double mean = calculateMean(intervals);
                     double sd = calculateSD(intervals, mean);
                     player.packetStateData.currentClickStdDev = sd;
                     player.packetStateData.currentMeanInterval = mean;
 
-                    // Unrandomized software autoclickers maintain sd < 1.5ms across 20+ intervals.
-                    // Legitimate jitter and butterfly clicking naturally produce sd > 2.5ms across 20 intervals.
+                    // Unrandomized software autoclickers maintain sd < 1.5ms across 16+ intervals.
+                    // Legitimate jitter and butterfly clicking naturally produce sd > 2.5ms across 16 intervals.
                     double maxAllowedSd = (mean < 80.0) ? 1.6 : (mean < 150.0 ? 2.0 : 2.5);
                     if (sd < maxAllowedSd && mean >= 35.0) {
                         sdBuffer += 1.0;
-                        if (sdBuffer >= 3.0) {
-                            sdBuffer = 0;
+                        if (sdBuffer >= 2.0) {
+                            sdBuffer = 1.0;
                             notifyBot();
                             flag("robotic_interval: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
                         }

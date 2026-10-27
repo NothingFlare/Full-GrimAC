@@ -48,6 +48,11 @@ public class Post extends Check implements PacketReceiveListener, PacketSendList
     }
 
     @Override
+    public boolean isApplicable() {
+        return !player.supportsEndTickPreVia();
+    }
+
+    @Override
     public void onPredictionComplete(final PredictionComplete predictionComplete) {
         if (flags.isEmpty()) {
             return;
