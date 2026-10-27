@@ -35,7 +35,6 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
     private static final int MAX_CPS = 22;
     private final Deque<Long> clickTimestamps = new ArrayDeque<>();
-    private final Deque<Long> startDiggingTimestamps = new ArrayDeque<>();
     private final Deque<Long> intervals = new ArrayDeque<>();
     private long lastClickTime = 0;
     private long lastSwingTime = 0;
@@ -68,7 +67,6 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
     private void resetClickHistory() {
         clickTimestamps.clear();
-        startDiggingTimestamps.clear();
         intervals.clear();
         lastClickTime = 0;
         lastSwingTime = 0;
@@ -109,10 +107,12 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
             case START_DIGGING -> {
                 isDiggingBlock = true;
                 lastDiggingStartTime = now;
+                resetClickHistory();
             }
             case FINISHED_DIGGING, CANCELLED_DIGGING -> {
                 isDiggingBlock = false;
                 lastDiggingEndTime = now;
+                resetClickHistory();
             }
         }
     }
@@ -130,19 +130,12 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 isDiggingBlock = true;
                 lastDiggingStartTime = now;
                 lastDiggingPacketTime = now;
-
-                startDiggingTimestamps.addLast(now);
-                while (!startDiggingTimestamps.isEmpty() && now - startDiggingTimestamps.peekFirst() > 1000) {
-                    startDiggingTimestamps.pollFirst();
-                }
-                if (startDiggingTimestamps.size() > 8) {
-                    notifyBot();
-                    flag("block_autoclicker: start_digging cps=" + startDiggingTimestamps.size());
-                }
+                resetClickHistory();
             } else if (action == DiggingAction.FINISHED_DIGGING || action == DiggingAction.CANCELLED_DIGGING) {
                 isDiggingBlock = false;
                 lastDiggingEndTime = now;
                 lastDiggingPacketTime = now;
+                resetClickHistory();
             }
             return;
         }
@@ -203,20 +196,16 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 return;
             }
 
+            // Completely ignore swings while digging or breaking blocks
+            if (isPlayerDigging(now)) {
+                resetClickHistory();
+                return;
+            }
+
             // Deduplicate: if an attack packet was processed within the last 45ms, this swing belongs to it
             lastSwingTime = now;
             if (now - lastAttackTime <= 45) {
                 return;
-            }
-
-            // While actively holding left click to mine a block, the vanilla client automatically sends
-            // an arm swing every 4 ticks (~200ms). Ignore these automatic mining swings so they don't false flag.
-            if ((isDiggingBlock || isPlayerDigging(now)) && lastClickTime > 0) {
-                long interval = now - lastClickTime;
-                if (Math.abs(interval - 200) <= 35) {
-                    lastClickTime = now;
-                    return;
-                }
             }
 
             handleClick(event);
