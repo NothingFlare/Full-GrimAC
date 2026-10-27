@@ -36,9 +36,9 @@ public class InventoryAction extends Check implements PacketReceiveListener {
         if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW) {
             long now = System.currentTimeMillis();
 
-            // Check if player attacked an entity in the exact same sub-tick window (< 15ms)
+            // Check if player attacked an entity in the exact same sub-tick window (< 50ms)
             long attackDelta = Math.abs(now - player.packetStateData.lastAttackPacketTime);
-            if (player.packetStateData.lastAttackPacketTime > 0 && attackDelta < 15) {
+            if (player.packetStateData.lastAttackPacketTime > 0 && attackDelta < 50) {
                 if (flag("action=attack, delta=" + attackDelta + "ms") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
@@ -67,7 +67,7 @@ public class InventoryAction extends Check implements PacketReceiveListener {
     private void handleAttackAfterClick(PacketReceiveEvent event) {
         long now = System.currentTimeMillis();
         long clickDelta = Math.abs(now - player.packetStateData.lastWindowClickTime);
-        if (player.packetStateData.lastWindowClickTime > 0 && clickDelta < 15) {
+        if (player.packetStateData.lastWindowClickTime > 0 && clickDelta < 50) {
             if (flag("action=attack_after_click, delta=" + clickDelta + "ms") && shouldModifyPackets()) {
                 event.setCancelled(true);
                 player.onPacketCancel();
