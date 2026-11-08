@@ -17,6 +17,8 @@ public class MultiActionsC extends Check implements PacketReceiveListener {
     private static final Verbose V = Verbose.of("sprinting={bool}, sneaking={bool}, input={bool}");
 
     private double buffer = 0.0;
+    private double lastHDistSq = 0.0;
+    private int movingClicks = 0;
 
     public MultiActionsC(GrimPlayer player) {
         super(player);
@@ -24,7 +26,9 @@ public class MultiActionsC extends Check implements PacketReceiveListener {
 
     @Contract(pure = true)
     public static boolean isVerboseSprinting(@NotNull GrimPlayer player) {
-        return player.isSprinting && (!player.isSwimming || !player.clientClaimsLastOnGround);
+        // In vanilla Minecraft, in-air sprint status is retained from the jump;
+        // only active ground sprinting is an actual movement state.
+        return player.isSprinting && player.clientClaimsLastOnGround && !player.isSwimming;
     }
 
     @Contract(pure = true)
@@ -39,19 +43,22 @@ public class MultiActionsC extends Check implements PacketReceiveListener {
 
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
+        // Reset tracking state whenever the player closes their inventory
+        if (event.getPacketType() == PacketType.Play.Client.CLOSE_WINDOW) {
+            buffer = 0.0;
+            movingClicks = 0;
+            lastHDistSq = 0.0;
+            return;
+        }
+
         if (event.getPacketType() != PacketType.Play.Client.CLICK_WINDOW) return;
         if (player.serverOpenedInventoryThisTick) return;
 
+        boolean input = isVerboseInput(player);
         boolean sprinting = isVerboseSprinting(player);
         boolean sneaking = isVerboseSneaking(player);
-        boolean input = isVerboseInput(player);
 
-        // Check physical movement displacement in the world (catches walking/jumping on 1.21.1 and older clients)
-        double dx = player.x - player.lastX;
-        double dz = player.z - player.lastZ;
-        double hDistSq = dx * dx + dz * dz;
-
-        // Ignore displacement caused by external forces (water flow, knockback, explosions) or vehicles
+        // 1. External forces (knockback, explosions, water currents, vehicles)
         boolean isPushed = player.wasTouchingWater
                 || player.wasWasTouchingWater
                 || player.firstBreadKB != null
@@ -60,29 +67,83 @@ public class MultiActionsC extends Check implements PacketReceiveListener {
                 || player.likelyExplosions != null;
         boolean isRiding = player.inVehicle();
 
-        // Player is actively walking, running, or jumping in the world
-        boolean movingInWorld = hDistSq > 0.008 && !isPushed && !player.isGliding && !player.isSwimming && !isRiding;
+        if (isPushed || isRiding || player.isGliding || player.isSwimming) {
+            buffer = Math.max(0.0, buffer - 1.0);
+            movingClicks = 0;
+            return;
+        }
 
-        // Sneaking alone while stationary is legitimate shift-clicking in chests/crafting;
-        // only treat sneaking as moving if the player is also actively moving across the world or sending inputs.
-        boolean sneakMoving = sneaking && (movingInWorld || input);
+        // 2. In-air momentum / jump inertia:
+        // In vanilla Minecraft, jumping and opening inventory in mid-air is completely legitimate.
+        // Once airborne, horizontal displacement is ballistic jump trajectory (momentum), NOT active walking.
+        // Only direct movement key input (input=true) indicates a cheat while in the air.
+        boolean airborne = !player.clientClaimsLastOnGround;
+        if (airborne && !input) {
+            buffer = Math.max(0.0, buffer - 0.5);
+            movingClicks = 0;
+            return;
+        }
 
-        boolean isMoving = sprinting || input || movingInWorld || sneakMoving;
+        // 3. Low-friction surfaces (Ice, Slime, Blue Ice):
+        // Sliding across ice or slime is vanilla physics inertia.
+        boolean isSlippery = player.uncertaintyHandler.isSteppingOnIce
+                || player.uncertaintyHandler.isSteppingOnSlime
+                || player.friction > 0.8f;
+        if (isSlippery && !input) {
+            buffer = Math.max(0.0, buffer - 0.5);
+            movingClicks = 0;
+            return;
+        }
 
-        if (!isMoving) {
+        // 4. Physical horizontal displacement in the world
+        double dx = player.x - player.lastX;
+        double dz = player.z - player.lastZ;
+        double hDistSq = dx * dx + dz * dz;
+
+        // Player is stationary or nearly stopped (< 0.07 blocks/tick)
+        if (hDistSq <= 0.005) {
+            buffer = Math.max(0.0, buffer - 1.0);
+            movingClicks = 0;
+            lastHDistSq = hDistSq;
+            return;
+        }
+
+        // 5. Ground Deceleration / Entry Inertia:
+        // When entering an inventory while running, the player slides to a stop over 2-3 ticks.
+        // Under natural inertia, speed is strictly decelerating (hDistSq <= lastHDistSq + 0.003).
+        // Cheats with InvMove maintain or increase speed (walking at ~0.22 b/t, hDistSq ~ 0.048).
+        boolean isDecelerating = (lastHDistSq > 0.005 && hDistSq <= lastHDistSq + 0.003);
+        lastHDistSq = hDistSq;
+
+        movingClicks++;
+
+        // Legitimate ground inertia:
+        // - The first 2 clicks while moving on ground without input are allowed as entry inertia / sliding transition.
+        // - Or if actively decelerating towards a stop.
+        if (!input && (movingClicks <= 2 || isDecelerating)) {
+            return;
+        }
+
+        // Active illegal inventory movement detection:
+        // - Direct input (WASD/jump in GUI is physically impossible in vanilla): immediate flag.
+        // - Sustained active walking on ground (movingClicks >= 3, or accelerating on ground, or sprinting on ground).
+        boolean isAccelerating = (hDistSq > lastHDistSq + 0.005);
+        boolean sustainedWalking = (movingClicks >= 3 || isAccelerating || sprinting);
+
+        if (!input && !sustainedWalking) {
             buffer = Math.max(0.0, buffer - 0.5);
             return;
         }
 
-        // Active movement detection:
-        // - Direct movement input (WASD/jump in GUI is impossible in vanilla) adds 1.5 (immediate flag).
-        // - Sprinting or physical world displacement adds 1.0 (gives 1 grace click for network tick boundaries,
-        //   then immediately flags and cancels on the 2nd moving click).
-        double increment = input ? 1.5 : 1.0;
+        double increment = input ? 2.5 : (sprinting ? 1.5 : 1.0);
         buffer += increment;
 
-        if (buffer >= 1.5) {
-            buffer = 1.5;
+        // Require buffer >= 2.5:
+        // - Direct key input (input=true) flags immediately (buffer 2.5).
+        // - Sustained walking on ground (InvMove cheat) gives 2 grace clicks for any boundary edge cases,
+        //   then firmly flags and cancels on the 3rd moving click.
+        if (buffer >= 2.5) {
+            buffer = 2.5;
             if (flag(V.write(verbose()).bool(sprinting).bool(sneaking).bool(input)) && shouldModifyPackets()) {
                 event.setCancelled(true);
                 player.onPacketCancel();
