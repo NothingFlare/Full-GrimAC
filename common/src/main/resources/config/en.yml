@@ -1,3 +1,6 @@
+# Language setting
+language: "en"
+
 # Full Full GrimAC main configuration
 # Source code: https://github.com/MWHunter/Grim
 # Copyright 2025 DefineOutside and contributors, Licensed under GPLv3.
@@ -101,6 +104,11 @@ InventoryAction:
     enabled: true
     setbackvl: 3
     decay: 0.05
+EntitySpeed:
+    enabled: true
+    setbackvl: 3
+    decay: 0.05
+
 CombatAutoClicker:
     enabled: true
     setbackvl: 5

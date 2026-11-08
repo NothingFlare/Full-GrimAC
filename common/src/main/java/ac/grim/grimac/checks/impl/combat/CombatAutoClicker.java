@@ -33,7 +33,7 @@ import java.util.Deque;
 )
 public class CombatAutoClicker extends Check implements PacketReceiveListener, BlockBreakListener {
 
-    private static final int MAX_CPS = 22;
+    private static final int MAX_CPS = 18;
     private final Deque<Long> clickTimestamps = new ArrayDeque<>();
     private final Deque<Long> intervals = new ArrayDeque<>();
     private long lastClickTime = 0;
@@ -47,7 +47,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
     private double cpsBuffer = 0.0;
     private double sdBuffer = 0.0;
 
-    // Block mining / placement tracking to prevent false flags when digging blocks
+    // Block mining / placement tracking
     private boolean isDiggingBlock = false;
     private long lastDiggingStartTime = 0;
     private long lastDiggingEndTime = 0;
@@ -65,35 +65,30 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         }
     }
 
-    private void resetClickHistory() {
-        clickTimestamps.clear();
-        intervals.clear();
-        lastClickTime = 0;
-        lastSwingTime = 0;
-        lastAttackTime = 0;
-        lastInterval = 0;
-        lastTickDiff = 0;
-        zeroDelayCount = 0;
-        consecutiveDuplicateIntervals = 0;
-        identicalTickCount = 0;
-        cpsBuffer = 0;
-        sdBuffer = 0;
+    private void decayClickHistory() {
+        if (!intervals.isEmpty()) {
+            intervals.pollFirst();
+        }
+        cpsBuffer = Math.max(0.0, cpsBuffer - 1.0);
+        sdBuffer = Math.max(0.0, sdBuffer - 0.5);
+        consecutiveDuplicateIntervals = Math.max(0, consecutiveDuplicateIntervals - 2);
+        identicalTickCount = Math.max(0, identicalTickCount - 2);
     }
 
     private boolean isPlayerDigging(long now) {
         if (player.packetOrderProcessor.isDigging()) {
             return true;
         }
-        if (isDiggingBlock && (now - lastDiggingStartTime < 15000)) {
+        if (isDiggingBlock && (now - lastDiggingStartTime < 10000)) {
             return true;
         }
-        if (now - lastDiggingEndTime < 800) {
+        if (now - lastDiggingEndTime < 400) {
             return true;
         }
-        if (now - lastDiggingPacketTime < 800) {
+        if (now - lastDiggingPacketTime < 400) {
             return true;
         }
-        if (now - player.lastBlockBreak < 800) {
+        if (now - player.lastBlockBreak < 400) {
             return true;
         }
         return false;
@@ -107,12 +102,10 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
             case START_DIGGING -> {
                 isDiggingBlock = true;
                 lastDiggingStartTime = now;
-                resetClickHistory();
             }
             case FINISHED_DIGGING, CANCELLED_DIGGING -> {
                 isDiggingBlock = false;
                 lastDiggingEndTime = now;
-                resetClickHistory();
             }
         }
     }
@@ -130,12 +123,10 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 isDiggingBlock = true;
                 lastDiggingStartTime = now;
                 lastDiggingPacketTime = now;
-                resetClickHistory();
             } else if (action == DiggingAction.FINISHED_DIGGING || action == DiggingAction.CANCELLED_DIGGING) {
                 isDiggingBlock = false;
                 lastDiggingEndTime = now;
                 lastDiggingPacketTime = now;
-                resetClickHistory();
             }
             return;
         }
@@ -150,32 +141,25 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         if (event.getPacketType() == PacketType.Play.Client.HELD_ITEM_CHANGE) {
             isDiggingBlock = false;
             lastDiggingEndTime = System.currentTimeMillis();
-            resetClickHistory();
             return;
         }
 
         // 1. Attack packets: check illegal attack while using items (bow, food, shield)
-        // Also register as combat click if no swing preceded it
         if (event.getPacketType() == PacketType.Play.Client.ATTACK) {
             isDiggingBlock = false;
-            lastDiggingEndTime = 0;
-            lastDiggingPacketTime = 0;
             handleAttackPacket(event);
             return;
         } else if (event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY) {
             WrapperPlayClientInteractEntity interact = new WrapperPlayClientInteractEntity(event);
             if (interact.getAction() == WrapperPlayClientInteractEntity.InteractAction.ATTACK) {
                 isDiggingBlock = false;
-                lastDiggingEndTime = 0;
-                lastDiggingPacketTime = 0;
                 handleAttackPacket(event);
             }
             return;
         }
 
-        // 2. Arm swing packets: track true physical click CPS and intervals in combat
+        // 2. Arm swing packets: Canonical single source of truth for physical clicks
         if (event.getPacketType() == PacketType.Play.Client.ANIMATION) {
-            // Exempt creative mode (insta-breaking blocks / rapid building)
             if (player.gamemode == GameMode.CREATIVE) return;
 
             // In 1.9+, ignore offhand animations (e.g. placing offhand blocks / eating)
@@ -192,22 +176,16 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
             long now = System.currentTimeMillis();
 
             // Ignore swings caused by placing blocks or right-clicking
-            if (player.packetOrderProcessor.isRightClicking() || (now - lastRightClickTime < 300)) {
+            if (player.packetOrderProcessor.isRightClicking() || (now - lastRightClickTime < 250)) {
                 return;
             }
 
-            // Completely ignore swings while digging or breaking blocks
+            // Ignore swings while legitimately mining blocks
             if (isPlayerDigging(now)) {
-                resetClickHistory();
                 return;
             }
 
-            // Deduplicate: if an attack packet was processed within the last 45ms, this swing belongs to it
             lastSwingTime = now;
-            if (now - lastAttackTime <= 20) {
-                return;
-            }
-
             handleClick(event);
         }
     }
@@ -224,11 +202,13 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
         long now = System.currentTimeMillis();
         lastAttackTime = now;
-        // Deduplicate: if a swing packet was processed within the last 45ms, this attack belongs to it
-        if (now - lastSwingTime <= 20) {
+
+        // If an animation already accompanied this attack in the last 150ms, do not register a duplicate click!
+        if (now - lastSwingTime <= 150) {
             return;
         }
 
+        // Attack occurred without animation (e.g. NoSwing cheat) -> register as click
         handleClick(event);
     }
 
@@ -236,27 +216,26 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         long now = System.currentTimeMillis();
 
         // 1. Zero-delay clicks:
-        // Butterfly clicking can produce legitimate double clicks (~8-15ms), but consecutive
-        // zero-delay packets (diff <= 5ms) without any gap indicate an unthrottled macro or packet flood.
+        // Consecutive packets with <= 8ms difference indicate macro / packet flood
         if (lastClickTime > 0) {
             long diff = now - lastClickTime;
-            if (diff <= 5) {
+            if (diff <= 8) {
                 zeroDelayCount++;
-                if (zeroDelayCount >= 6) {
+                if (zeroDelayCount >= 3) {
                     zeroDelayCount = 0;
                     notifyBot();
-                    if (flag("zero_delay=" + diff + "ms") && shouldModifyPackets()) {
+                    if (flag("zero_delay=" + diff + "ms (x3)") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
                         return;
                     }
                 }
-            } else if (diff > 25) {
+            } else if (diff > 30) {
                 zeroDelayCount = 0;
             }
         }
 
-        // 2. Sliding 1-second CPS check with buffer for human burst allowance
+        // 2. Sliding 1-second CPS check
         clickTimestamps.addLast(now);
         while (!clickTimestamps.isEmpty() && now - clickTimestamps.peekFirst() > 1000) {
             clickTimestamps.pollFirst();
@@ -264,89 +243,92 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
         int cps = clickTimestamps.size();
         if (cps > MAX_CPS) {
-            cpsBuffer += (cps - MAX_CPS);
-            if (cpsBuffer >= 4.0) {
-                cpsBuffer = 0;
+            // Blatant high CPS (>= 22) triggers immediately; 19-21 requires small buffer
+            if (cps >= 22) {
                 notifyBot();
                 if (flag("cps=" + cps) && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
                     return;
                 }
+            } else {
+                cpsBuffer += (cps - MAX_CPS) * 0.5;
+                if (cpsBuffer >= 2.0) {
+                    cpsBuffer = 1.0;
+                    notifyBot();
+                    if (flag("cps=" + cps) && shouldModifyPackets()) {
+                        event.setCancelled(true);
+                        player.onPacketCancel();
+                        return;
+                    }
+                }
             }
         } else {
-            cpsBuffer = Math.max(0, cpsBuffer - 1.0);
+            cpsBuffer = Math.max(0.0, cpsBuffer - 0.5);
         }
 
         // 3. Robotic consistency & interval pattern checks
         if (!PerformanceProtectionManager.shouldSkipInventory() && lastClickTime > 0) {
             long interval = now - lastClickTime;
 
-            if (interval >= 25 && interval <= 500) {
-                // 3a. Exact constant delay check (e.g. 50ms, 50ms, 50ms)
-                // Real autoclickers have exact 0-1ms variation across many clicks.
-                // Require at least 8 consecutive identical intervals.
-                if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 1) {
+            if (interval >= 20 && interval <= 500) {
+                // 3a. Constant delay check with 3ms network ping tolerance (e.g. 50ms +/- 3ms)
+                if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 3) {
                     consecutiveDuplicateIntervals++;
-                    if (consecutiveDuplicateIntervals >= 8) {
-                        consecutiveDuplicateIntervals = 4;
+                    if (consecutiveDuplicateIntervals >= 5) {
+                        consecutiveDuplicateIntervals = 3;
                         notifyBot();
-                        flag("constant_delay: " + interval + "ms");
+                        flag("constant_delay: " + interval + "ms (x5)");
                     }
-                } else if (Math.abs(interval - lastInterval) > 2) {
-                    consecutiveDuplicateIntervals = 0;
+                } else if (Math.abs(interval - lastInterval) > 4) {
+                    consecutiveDuplicateIntervals = Math.max(0, consecutiveDuplicateIntervals - 1);
                 }
                 lastInterval = interval;
 
-                // 3b. Fixed tick delta check (strictly 1 tick = 50ms or 2 ticks = 100ms)
-                // Cheats only lock to 1 tick (20 CPS) or 2 ticks (10 CPS).
-                // Never check 3+ ticks (150ms+), which is completely normal human rhythmic clicking!
+                // 3b. Fixed tick delta check (1 tick = 50ms or 2 ticks = 100ms)
                 int tickDiff = (int) Math.round((double) interval / 50.0);
-                if (lastTickDiff > 0 && tickDiff == lastTickDiff && (tickDiff == 1 || tickDiff == 2) && Math.abs(interval - (tickDiff * 50)) <= 3) {
+                if (lastTickDiff > 0 && tickDiff == lastTickDiff && (tickDiff == 1 || tickDiff == 2) && Math.abs(interval - (tickDiff * 50)) <= 4) {
                     identicalTickCount++;
-                    if (identicalTickCount >= 10) {
-                        identicalTickCount = 6;
+                    if (identicalTickCount >= 6) {
+                        identicalTickCount = 4;
                         notifyBot();
                         flag("tick_locked: " + tickDiff + " ticks (~" + (tickDiff * 50) + "ms)");
                     }
                 } else {
-                    identicalTickCount = 0;
+                    identicalTickCount = Math.max(0, identicalTickCount - 1);
                 }
                 lastTickDiff = tickDiff;
 
-                // 3c. Standard deviation across a statistically significant rolling window (20+ samples)
+                // 3c. Rolling standard deviation across 10-14 samples
                 intervals.addLast(interval);
-                if (intervals.size() > 20) {
+                if (intervals.size() > 14) {
                     intervals.pollFirst();
                 }
 
-                if (intervals.size() >= 16) {
+                if (intervals.size() >= 10) {
                     double mean = calculateMean(intervals);
                     double sd = calculateSD(intervals, mean);
                     player.packetStateData.currentClickStdDev = sd;
                     player.packetStateData.currentMeanInterval = mean;
 
-                    // Unrandomized software autoclickers maintain sd < 1.5ms across 16+ intervals.
-                    // Legitimate jitter and butterfly clicking naturally produce sd > 2.5ms across 16 intervals.
-                    double maxAllowedSd = (mean < 80.0) ? 1.2 : (mean < 150.0 ? 1.6 : 2.0);
-                    if (sd < maxAllowedSd && mean >= 35.0) {
+                    // Autoclickers (even randomized ones) produce standard deviation < 3.5ms.
+                    // Legitimate human clicking naturally produces standard deviation > 12ms.
+                    double maxAllowedSd = (mean < 70.0) ? 2.5 : (mean < 120.0 ? 3.2 : 3.8);
+                    if (sd < maxAllowedSd && mean >= 30.0) {
                         sdBuffer += 1.0;
-                        if (sdBuffer >= 4.0) {
-                            sdBuffer = 1.0;
+                        if (sdBuffer >= 1.5) {
+                            sdBuffer = 0.8;
                             notifyBot();
                             flag("robotic_interval: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
                         }
-                    } else if (sd > maxAllowedSd + 2.0) {
-                        sdBuffer = Math.max(0, sdBuffer - 0.5);
+                    } else if (sd > maxAllowedSd + 3.0) {
+                        sdBuffer = Math.max(0.0, sdBuffer - 0.4);
                     }
                 }
             } else if (interval > 500) {
-                // Reset consecutive streak after pause
-                consecutiveDuplicateIntervals = 0;
-                identicalTickCount = 0;
+                decayClickHistory();
                 lastInterval = 0;
                 lastTickDiff = 0;
-                sdBuffer = 0;
             }
         }
 
@@ -367,7 +349,8 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         double sum = 0;
         int count = 0;
         for (long v : values) {
-            sum += Math.pow(v - mean, 2);
+            double diff = v - mean;
+            sum += diff * diff;
             count++;
         }
         return count == 0 ? 0 : Math.sqrt(sum / count);

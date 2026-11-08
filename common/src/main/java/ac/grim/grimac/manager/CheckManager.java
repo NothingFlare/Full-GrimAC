@@ -31,6 +31,7 @@ import ac.grim.grimac.checks.impl.misc.ClientBrand;
 import ac.grim.grimac.checks.impl.misc.GhostBlockMitigation;
 import ac.grim.grimac.checks.impl.misc.Post;
 import ac.grim.grimac.checks.impl.misc.TransactionOrder;
+import ac.grim.grimac.checks.impl.movement.EntitySpeed;
 import ac.grim.grimac.checks.impl.movement.NoSlow;
 import ac.grim.grimac.checks.impl.movement.PredictionRunner;
 import ac.grim.grimac.checks.impl.movement.SetbackBlocker;
@@ -197,6 +198,7 @@ public class CheckManager implements BasicReloadable {
                 .put(SuperDebug.class, new SuperDebug(player))
                 .put(DebugHandler.class, new DebugHandler(player))
                 .put(BadPacketsX.class, new BadPacketsX(player))
+                .put(EntitySpeed.class, new EntitySpeed(player))
                 .put(NoSlow.class, new NoSlow(player))
                 .put(SprintA.class, new SprintA(player))
                 .put(SprintB.class, new SprintB(player))

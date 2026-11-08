@@ -7,7 +7,7 @@
 [![Minecraft Version](https://img.shields.io/badge/Minecraft-1.8--1.21.11+-2b2b2b.svg?style=flat-square)](https://papermc.io)
 [![Java Version](https://img.shields.io/badge/Java-17+-2b2b2b.svg?style=flat-square)](https://www.oracle.com/java/)
 [![Folia](https://img.shields.io/badge/Folia-Supported-2b2b2b.svg?style=flat-square)](https://papermc.io/software/folia)
-[![Release](https://img.shields.io/badge/Release-1.4-2b2b2b.svg?style=flat-square)]()
+[![Release](https://img.shields.io/badge/Release-1.5-2b2b2b.svg?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-GPL--3.0-2b2b2b.svg?style=flat-square)](LICENSE)
 
 [Overview](#overview) • [Fork Notice](#fork-notice) • [Key Features](#key-features) • [Compatibility](#compatibility) • [Commands and Permissions](#commands-and-permissions) • [Configuration](#configuration) • [Localization](#localization) • [Installation](#installation) • [Compiling from Source](#compiling-from-source) • [License & Attribution](#license--attribution)
@@ -43,7 +43,19 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
   - Complete latency and inventory compensation prevents ghost blocks and desynchronization under high latency.
   - Full support for ViaVersion, ViaBackwards, and Geyser/Floodgate bedrock exemption.
 
+- **Entity Collision Speed Exploit Prevention (`EntitySpeed`)**
+  - Detects players abusing entity pushing/collision physics to achieve impossible sprint and strafe acceleration.
+  - Predicts maximum physical push forces and clamps uncertainty bounds to prevent entity-speed bypasses while maintaining full setback stability.
+
 - **Advanced Combat & Click Consistency Detection (Full GrimAC Additions)**
+  - `CombatAutoClicker`: Enhanced algorithm with instant detection for blatant CPS (>= 22), high CPS, zero-delay clicks, and strict standard deviation tracking (window: 10 clicks, threshold: 3.5ms).
+  - Packet deduplication resilience: Standardizes on animation ticks as the authoritative clock, preventing attack packet bursts from disrupting interval tracking.
+  - Mining & block break tap immunity: Sustained mining protection ensures legit mining and block interactions will never cause false flags.
+
+- **Refined AntiXray & Vein Visibility Verification**
+  - Eliminates false positive flags during legitimate diamond mining and branch mining.
+  - Automatically verifies open air, water, and lava exposure, connected vein propagation, and player block history before flagging occluded ores.
+  - Expanded baseline ore-to-stone sample ratio accounting for legitimate deepslate diamond vein clustering.
   - `CombatAutoClicker`: Tracks true physical attack CPS, physiological zero-delay clicks (≤ 10ms), and repetitive interval consistency across sliding windows (up to 500ms).
   - Tick-locked macro detection identifies hardware macros and cheat clients locked to client ticks (~50ms, ~100ms, ~200ms).
   - Rolling standard deviation (`sd`) analysis detects robotic regularity in combat clicks.
@@ -124,7 +136,7 @@ The default configuration file (`plugins/FullGrimAC/config.yml`):
 #               Full GrimAC Configuration
 # =======================================================
 
-# Active language (en, ru, de, fr, es, it, ja, nl, pl, pt, ro, tr, zh)
+# Active language (en, ru, zh, de, fr, es, pt, ja, uk, it, pl, tr, ko)
 language: "en"
 
 # Performance Protection System
@@ -145,27 +157,30 @@ performance-protection:
 
 Full GrimAC includes built-in multi-language translations located in `plugins/FullGrimAC/messages/`:
 
-| Code | Language | Native Name | File |
-| :---: | :--- | :--- | :--- |
-| `en` | English | English | `messages/en.yml` |
-| `ru` | Russian | Русский | `messages/ru.yml` |
-| `zh` | Chinese | 简体中文 | `messages/zh.yml` |
-| `de` | German | Deutsch | `messages/de.yml` |
-| `fr` | French | Français | `messages/fr.yml` |
-| `es` | Spanish | Español | `messages/es.yml` |
-| `it` | Italian | Italiano | `messages/it.yml` |
-| `ja` | Japanese | 日本語 | `messages/ja.yml` |
-| `nl` | Dutch | Nederlands | `messages/nl.yml` |
-| `pl` | Polish | Polski | `messages/pl.yml` |
-| `pt` | Portuguese | Português | `messages/pt.yml` |
-| `ro` | Romanian | Română | `messages/ro.yml` |
-| `tr` | Turkish | Türkçe | `messages/tr.yml` |
+| Code | Language | Native Name | Configuration | Check Descriptions |
+| :---: | :--- | :--- | :---: | :---: |
+| `en` | English | English | Supported | Supported |
+| `ru` | Russian | Русский | Supported | Supported |
+| `zh` | Chinese | 简体中文 | Supported | Supported |
+| `de` | German | Deutsch | Supported | Supported |
+| `fr` | French | Français | Supported | Supported |
+| `es` | Spanish | Español | Supported | Supported |
+| `pt` | Portuguese | Português | Supported | Supported |
+| `ja` | Japanese | 日本語 | Supported | Supported |
+| `uk` | Ukrainian | Українська | Supported | Supported |
+| `it` | Italian | Italiano | Supported | Supported |
+| `pl` | Polish | Polski | Supported | Supported |
+| `tr` | Turkish | Türkçe | Supported | Supported |
+| `ko` | Korean | 한국어 | Supported | Supported |
+
+> [!NOTE]
+> All technical check identifiers (e.g. `CombatAutoClicker`, `Simulation`, `EntitySpeed`) remain strictly in English across all alerts and commands, while check descriptions displayed on hover (`%description%`) are fully localized into all 13 supported languages.
 
 ---
 
 ## Installation
 
-1. Download `FullGrimAC-1.4.jar` from the release section.
+1. Download `FullGrimAC-1.5.jar` from the release section.
 2. Place the jar file into your server's `plugins/` directory.
 3. Start or restart the server to generate default configurations.
 4. Customize `plugins/FullGrimAC/config.yml` according to your server environment.
@@ -189,7 +204,7 @@ cd Full-GrimAC
 
 The resulting compiled binary will be located in:
 ```text
-bukkit/build/libs/FullGrimAC-1.4.jar
+bukkit/build/libs/FullGrimAC-1.5.jar
 ```
 
 ---

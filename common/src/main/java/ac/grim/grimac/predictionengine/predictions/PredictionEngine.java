@@ -537,7 +537,9 @@ public class PredictionEngine {
         // 0.075 seems safe?
         //
         // Be somewhat careful as there is an antikb (for horizontal) that relies on this lenience
-        Vector3dm uncertainty = new Vector3dm(avgColliding * 0.08, additionVertical, avgColliding * 0.08);
+        // Cap entity collision uncertainty to prevent EntitySpeed / PushBoost cheats
+        double collisionUncertainty = Math.min(0.06, avgColliding * 0.035);
+        Vector3dm uncertainty = new Vector3dm(collisionUncertainty, additionVertical, collisionUncertainty);
 
         Vector3dm min = new Vector3dm(player.uncertaintyHandler.xNegativeUncertainty - additionHorizontal, -bonusY + player.uncertaintyHandler.yNegativeUncertainty, player.uncertaintyHandler.zNegativeUncertainty - additionHorizontal);
         Vector3dm max = new Vector3dm(player.uncertaintyHandler.xPositiveUncertainty + additionHorizontal, bonusY + player.uncertaintyHandler.yPositiveUncertainty, player.uncertaintyHandler.zPositiveUncertainty + additionHorizontal);

@@ -235,6 +235,14 @@ public class Check extends GrimProcessor implements AbstractCheck {
         super.reload(configuration);
     }
 
+    @Override
+    public String getDescription() {
+        if (description != null && !description.equals(defaultDescription)) {
+            return description;
+        }
+        return CheckDescriptions.getDescription(this.checkName, this.defaultDescription);
+    }
+
     public boolean alert(String verbose) {
         return alert(constant(verbose));
     }

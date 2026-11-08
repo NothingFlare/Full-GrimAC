@@ -6,6 +6,7 @@
  */
 package ac.grim.grimac.checks.impl.world;
 
+import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.checks.Check;
 import ac.grim.grimac.checks.CheckData;
 import ac.grim.grimac.checks.type.PacketReceiveListener;
@@ -25,8 +26,9 @@ import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPl
 )
 public class AntiXray extends Check implements PacketReceiveListener {
 
-    private int rareOresMined = 0;
-    private int totalMined = 0;
+    private int hiddenRareOresMined = 0;
+    private int totalUndergroundMined = 0;
+    private double ratioBuffer = 0.0;
 
     public AntiXray(GrimPlayer player) {
         super(player);
@@ -44,13 +46,16 @@ public class AntiXray extends Check implements PacketReceiveListener {
                 WrappedBlockState state = player.compensatedWorld.getBlock(pos);
                 if (state == null || state.getType() == null) return;
 
-                String blockName = state.getType().getName().toLowerCase();
+                String blockName = state.getType().getName().toLowerCase(java.util.Locale.ROOT);
                 boolean isRare = isRareOre(blockName);
 
-                // 1. Occluded Ore Detection (Freecam / Xray Nuker)
-                // When TPS is low, skip expensive 6-face block lookups to save server CPU
+                boolean isExposed = isExposedToOpenSpace(pos);
+
+                // 1. Occluded Ore Detection (Freecam / Xray Nuker):
+                // If a rare ore has NO exposed faces, NO adjacent air/water, NO recently broken neighbors in blockHistory,
+                // and NO adjacent exposed vein block, it is completely occluded inside solid rock.
                 if (isRare && !PerformanceProtectionManager.shouldSimplifyAntiXray()) {
-                    if (isFullyOccluded(pos)) {
+                    if (!isExposed) {
                         if (flag("occluded_ore=" + blockName + " at " + pos.getX() + "," + pos.getY() + "," + pos.getZ()) && shouldModifyPackets()) {
                             event.setCancelled(true);
                             player.onPacketCancel();
@@ -59,47 +64,98 @@ public class AntiXray extends Check implements PacketReceiveListener {
                     }
                 }
 
+                // 2. Statistical Mining Ratio (Rolling Window)
+                // Legitimate players finding exposed diamond veins in caves or mining out exposed clusters
+                // must NEVER count towards suspicious hidden tunneling ratios!
                 if (isRare) {
-                    rareOresMined++;
-                    totalMined++;
+                    totalUndergroundMined++;
+                    if (!isExposed) {
+                        hiddenRareOresMined++;
+                    }
 
-                    // 2. Statistical Mining Ratio (Rolling Window)
-                    if (totalMined >= 35) {
-                        double ratio = (double) rareOresMined / totalMined;
-                        // Vanilla branch mining diamond ratio is normally 1.5% - 3.5%. > 14% indicates straight Xray tunneling
-                        if (ratio > 0.14) {
-                            flag("xray_ratio=" + String.format("%.1f", ratio * 100) + "% (rare=" + rareOresMined + ", total=" + totalMined + ")");
+                    if (totalUndergroundMined >= 120) {
+                        double ratio = (double) hiddenRareOresMined / totalUndergroundMined;
+                        // Legitimate blind branch mining produces 1.5% - 4.5% unexposed rare ores.
+                        // Straight X-ray tunneling into hidden unexposed ores exceeds 22%.
+                        if (ratio > 0.22) {
+                            ratioBuffer += 1.0;
+                            if (ratioBuffer >= 2.0) {
+                                ratioBuffer = 1.0;
+                                flag("xray_ratio=" + String.format("%.1f", ratio * 100) + "% (hidden=" + hiddenRareOresMined + ", total=" + totalUndergroundMined + ")");
+                            }
+                        } else {
+                            ratioBuffer = Math.max(0.0, ratioBuffer - 0.2);
                         }
                     }
-                } else if (isStoneLike(blockName)) {
-                    totalMined++;
+                } else if (isUndergroundBlock(blockName)) {
+                    totalUndergroundMined++;
+                    ratioBuffer = Math.max(0.0, ratioBuffer - 0.05);
 
-                    // Exponential decay to keep window fresh
-                    if (totalMined > 250) {
-                        rareOresMined = (int) (rareOresMined * 0.7);
-                        totalMined = (int) (totalMined * 0.7);
+                    // Exponential decay rolling window
+                    if (totalUndergroundMined > 400) {
+                        hiddenRareOresMined = (int) (hiddenRareOresMined * 0.7);
+                        totalUndergroundMined = (int) (totalUndergroundMined * 0.7);
                     }
                 }
             }
         }
     }
 
-    private boolean isFullyOccluded(Vector3i pos) {
+    private boolean isExposedToOpenSpace(Vector3i pos) {
         int x = pos.getX();
         int y = pos.getY();
         int z = pos.getZ();
 
-        return isSolidOpaque(player.compensatedWorld.getBlock(x, y + 1, z)) &&
-                isSolidOpaque(player.compensatedWorld.getBlock(x, y - 1, z)) &&
-                isSolidOpaque(player.compensatedWorld.getBlock(x, y, z + 1)) &&
-                isSolidOpaque(player.compensatedWorld.getBlock(x, y, z - 1)) &&
-                isSolidOpaque(player.compensatedWorld.getBlock(x + 1, y, z)) &&
-                isSolidOpaque(player.compensatedWorld.getBlock(x - 1, y, z));
+        // Check all 6 immediate neighbors
+        return isNeighborOpen(x, y + 1, z) ||
+                isNeighborOpen(x, y - 1, z) ||
+                isNeighborOpen(x, y, z + 1) ||
+                isNeighborOpen(x, y, z - 1) ||
+                isNeighborOpen(x + 1, y, z) ||
+                isNeighborOpen(x - 1, y, z);
     }
 
-    private static boolean isSolidOpaque(WrappedBlockState state) {
-        if (state == null || state.getType() == null) return false;
-        return !state.getType().isAir() && state.getType().isSolid();
+    private boolean isNeighborOpen(int x, int y, int z) {
+        WrappedBlockState state = player.compensatedWorld.getBlock(x, y, z);
+        if (state == null || state.getType() == null) return true;
+
+        // Air, water, lava, or non-solid/transparent blocks (torches, slabs, glass, etc.)
+        if (state.getType().isAir() || !state.getType().isSolid()) {
+            return true;
+        }
+
+        // Neighbor was recently broken by the player in blockHistory
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+        boolean wasRecentlyMined = player.blockHistory.getRecentModifications(mod ->
+                Math.abs(currentTick - mod.tick()) <= 40 &&
+                mod.location().getX() == x && mod.location().getY() == y && mod.location().getZ() == z &&
+                (mod.newBlockContents() == null || mod.newBlockContents().getType().isAir())
+        ).iterator().hasNext();
+
+        if (wasRecentlyMined) {
+            return true;
+        }
+
+        // Check if neighbor is part of the same ore vein that is already exposed
+        String neighborName = state.getType().getName().toLowerCase(java.util.Locale.ROOT);
+        if (isOre(neighborName)) {
+            // If the adjacent ore itself touches air or was mined, the vein is exposed
+            return touchesAirOrLiquid(x, y, z);
+        }
+
+        return false;
+    }
+
+    private boolean touchesAirOrLiquid(int x, int y, int z) {
+        return isOpen(x, y + 1, z) || isOpen(x, y - 1, z) ||
+               isOpen(x, y, z + 1) || isOpen(x, y, z - 1) ||
+               isOpen(x + 1, y, z) || isOpen(x - 1, y, z);
+    }
+
+    private boolean isOpen(int x, int y, int z) {
+        WrappedBlockState state = player.compensatedWorld.getBlock(x, y, z);
+        if (state == null || state.getType() == null) return true;
+        return state.getType().isAir() || !state.getType().isSolid();
     }
 
     private static boolean isRareOre(String name) {
@@ -108,7 +164,11 @@ public class AntiXray extends Check implements PacketReceiveListener {
                 name.contains("emerald_ore");
     }
 
-    private static boolean isStoneLike(String name) {
+    private static boolean isOre(String name) {
+        return name.contains("ore") || name.contains("debris");
+    }
+
+    private static boolean isUndergroundBlock(String name) {
         return name.contains("stone") ||
                 name.contains("deepslate") ||
                 name.contains("netherrack") ||
@@ -116,6 +176,11 @@ public class AntiXray extends Check implements PacketReceiveListener {
                 name.contains("granite") ||
                 name.contains("diorite") ||
                 name.contains("andesite") ||
-                name.contains("blackstone");
+                name.contains("blackstone") ||
+                name.contains("dirt") ||
+                name.contains("gravel") ||
+                name.contains("sand") ||
+                name.contains("calcite") ||
+                name.contains("ore");
     }
 }
