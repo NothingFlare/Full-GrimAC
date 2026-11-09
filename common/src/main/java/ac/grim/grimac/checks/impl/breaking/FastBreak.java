@@ -31,8 +31,6 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
     private static final Verbose V =
             Verbose.of("[delay={ulong}ms|diff={f64:%.1f}ms, balance={f64:%.1f}ms], type={block}");
 
-    // For some reason these states flag and I don't know why.
-    // Better to just exempt to not annoy legit players.
     private static final Set<StateType> EXEMPT_STATES = Set.of();
     private final boolean clientOlderThanServer = PacketEvents.getAPI().getServerManager().getVersion().getProtocolVersion() > player.getClientVersion().getProtocolVersion();
 
@@ -43,14 +41,13 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
     // The block the player is currently breaking
     Vector3i targetBlockPosition = null;
     // The maximum amount of damage the player deals to the block
-    //
     double maximumBlockDamage = 0;
-    // The last time a finish digging packet was sent, to enforce 0.3-second delay after non-instabreak
+    // The last time a finish digging packet was sent, to enforce delay after non-instabreak
     long lastFinishBreak = 0;
-    // The time the player started to break the block, to know how long the player waited until they finished breaking the block
+    // The time the player started to break the block
     long startBreak = 0;
 
-    // The buffer to this check
+    // The balance buffers
     double blockBreakBalance = 0;
     double blockDelayBalance = 0;
 
@@ -58,37 +55,33 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
     public void onBlockBreak(BlockBreak blockBreak) {
         if (blockBreak.action == DiggingAction.START_DIGGING) {
             if (!ViaVersionUtil.isAvailable) {
-                // Exempt all blocks that do not exist in the player version
                 final WrappedBlockState defaultState = WrappedBlockState.getDefaultState(player.getClientVersion(), blockBreak.block.getType());
                 if (defaultState.getType() == StateTypes.AIR || EXEMPT_STATES.contains(defaultState.getType())) {
                     return;
                 }
             }
-            // If client is older than the server, fetch block client actually sees from via
-            // otherwise just return the server-side block (since if client is >= server version the block is guaranteed to exist in client version)
-            // TODO this lazy loads PacketEvents mappings for older versions for clients on versions older than the servers, increasing memory usage
-            //  * its the only thing we use non-native mappings for behind ViaVersion
-            //  * can we translate back "up" to server version and run check against server version to avoid loading older registries?
             WrappedBlockState block = clientOlderThanServer ? WrappedBlockState.getByGlobalId(player.getClientVersion(), player.getViaTranslatedClientBlockID(blockBreak.block.getGlobalId())) : blockBreak.block;
 
-            startBreak = System.currentTimeMillis() - (targetBlockPosition == null ? 50 : 0); // ???
+            startBreak = System.currentTimeMillis() - (targetBlockPosition == null ? 50 : 0);
             targetBlockPosition = blockBreak.position;
 
-            // FIXME: getBlockDamage might not return the correct value if the player switched slots before this
             maximumBlockDamage = BlockBreakSpeed.getBlockDamage(player, block);
 
             double breakDelay = System.currentTimeMillis() - lastFinishBreak;
 
-            if (breakDelay >= 275) { // Reduce buffer if "close enough"
-                blockDelayBalance *= 0.9;
-            } else { // Otherwise, increase buffer
-                blockDelayBalance += 300 - breakDelay;
+            // In vanilla, breaking a non-instabreak block requires 5 ticks (250-300ms) delay before starting the next block
+            if (breakDelay >= 225) {
+                blockDelayBalance = Math.max(0.0, blockDelayBalance * 0.85);
+            } else {
+                blockDelayBalance += (250 - breakDelay);
             }
 
-            if (blockDelayBalance > 1000) { // If more than a second of advantage
+            double maxDelayAdvantage = Math.max(250.0, player.getTransactionPing());
+            if (blockDelayBalance > maxDelayAdvantage) {
                 int type = VerboseCodecs.block(blockBreak.block.getType(), player.getClientVersion());
-                if (flag(V.write(verbose()).bool(true).ulong((long) breakDelay).f64(0).f64(0).sint(type)) && shouldModifyPackets()) {
+                if (flag(V.write(verbose()).bool(true).ulong((long) breakDelay).f64(0).f64(blockDelayBalance).sint(type)) && shouldModifyPackets()) {
                     blockBreak.cancel();
+                    player.resyncPosition(blockBreak.position);
                 }
             }
 
@@ -96,36 +89,46 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
         }
 
         if (blockBreak.action == DiggingAction.FINISHED_DIGGING && targetBlockPosition != null) {
-            double predictedTime = Math.ceil(1 / maximumBlockDamage) * 50;
+            double predictedTime = Math.ceil(1.0 / maximumBlockDamage) * 50.0;
             double realTime = System.currentTimeMillis() - startBreak;
             double diff = predictedTime - realTime;
 
             clampBalance();
 
-            if (diff < 25) {  // Reduce buffer if "close enough"
-                blockBreakBalance *= 0.9;
-            } else { // Otherwise, increase buffer
-                blockBreakBalance += diff;
-            }
-
-            if (blockBreakBalance > 1000) { // If more than a second of advantage
+            // 1. Instant Break Exploit on non-instabreak blocks:
+            // If the block requires multiple ticks (maximumBlockDamage < 1.0) and was broken in less than half the vanilla required time or < 75ms
+            if (maximumBlockDamage < 1.0 && predictedTime >= 100.0 && (realTime < 75.0 || realTime < predictedTime * 0.45)) {
                 int type = VerboseCodecs.block(blockBreak.block.getType(), player.getClientVersion());
-                if (flag(V.write(verbose()).bool(false).ulong(0).f64(diff).f64(blockBreakBalance).sint(type)) && shouldModifyPackets()) {
+                if (flag(V.write(verbose()).bool(false).ulong(0).f64(diff).f64(diff).sint(type)) && shouldModifyPackets()) {
                     blockBreak.cancel();
+                    player.resyncPosition(blockBreak.position);
+                    lastFinishBreak = startBreak = System.currentTimeMillis();
+                    return;
                 }
             }
 
-            // also set start time because the breaking netcode is fucked on 1.14.4+
+            // 2. Sustained FastBreak balance check (tightened threshold from 1000ms down to 250ms)
+            if (diff < 20) {
+                blockBreakBalance = Math.max(0.0, blockBreakBalance * 0.85);
+            } else {
+                blockBreakBalance += diff;
+            }
+
+            double maxBreakAdvantage = Math.max(250.0, player.getTransactionPing());
+            if (blockBreakBalance > maxBreakAdvantage) {
+                int type = VerboseCodecs.block(blockBreak.block.getType(), player.getClientVersion());
+                if (flag(V.write(verbose()).bool(false).ulong(0).f64(diff).f64(blockBreakBalance).sint(type)) && shouldModifyPackets()) {
+                    blockBreak.cancel();
+                    player.resyncPosition(blockBreak.position);
+                }
+            }
+
             lastFinishBreak = startBreak = System.currentTimeMillis();
         }
     }
 
     @Override
     public void onPreViaPacketReceive(PacketReceiveEvent event) {
-        // Find the most optimal block damage using the animation packet, which is sent at least once a tick when breaking blocks
-        // On 1.8 clients, via screws with this packet meaning we must fall back to the 1.8 idle flying packet
-        //
-        // listen for flying packets because some block breaks can happen before the next animation (somehow???), causing onGround desync
         boolean flying = WrapperPlayClientPlayerFlying.isFlying(event.getPacketType());
         if ((flying || player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9) && isAnimation(event.getPacketType())) && targetBlockPosition != null) {
             maximumBlockDamage = Math.max(maximumBlockDamage, BlockBreakSpeed.getBlockDamage(player, player.compensatedWorld.getBlock(targetBlockPosition)));
@@ -133,8 +136,8 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
     }
 
     private void clampBalance() {
-        double balance = Math.max(1000, (player.getTransactionPing()));
-        blockBreakBalance = GrimMath.clamp(blockBreakBalance, -balance, balance); // Clamp not Math.max in case other logic changes
+        double balance = Math.max(300.0, player.getTransactionPing() * 1.5);
+        blockBreakBalance = GrimMath.clamp(blockBreakBalance, -balance, balance);
         blockDelayBalance = GrimMath.clamp(blockDelayBalance, -balance, balance);
     }
 }

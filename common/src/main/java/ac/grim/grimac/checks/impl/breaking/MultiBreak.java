@@ -18,7 +18,7 @@ import com.github.retrooper.packetevents.util.Vector3i;
 import java.util.ArrayList;
 import java.util.List;
 
-@CheckData(name = "MultiBreak", stableKey = "grim.breaking.multi_break", description = "Tried to break multiple different blocks in the same movement tick", experimental = true)
+@CheckData(name = "MultiBreak", stableKey = "grim.breaking.multi_break", description = "Tried to break multiple different blocks in the same movement tick")
 public class MultiBreak extends Check implements BlockBreakListener, PreViaPacketReceiveListener, PostPredictionListener {
     private static final Verbose V =
             Verbose.of("face={face}, lastFace={face}, pos={mcpos}, lastPos={mcpos}");

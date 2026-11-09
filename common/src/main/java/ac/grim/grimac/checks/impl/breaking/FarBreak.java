@@ -12,7 +12,7 @@ import ac.grim.grimac.utils.math.VectorUtils;
 import com.github.retrooper.packetevents.protocol.attribute.Attributes;
 import com.github.retrooper.packetevents.protocol.player.DiggingAction;
 
-@CheckData(name = "FarBreak", stableKey = "grim.breaking.far_break", description = "Breaking blocks too far away", experimental = true)
+@CheckData(name = "FarBreak", stableKey = "grim.breaking.far_break", description = "Breaking blocks too far away")
 public class FarBreak extends Check implements BlockBreakListener {
     private static final Verbose V = Verbose.of("distance={f64:%.2f}");
 

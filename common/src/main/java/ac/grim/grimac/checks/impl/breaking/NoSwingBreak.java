@@ -9,7 +9,7 @@ import ac.grim.grimac.utils.anticheat.update.BlockBreak;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.player.DiggingAction;
 
-@CheckData(name = "NoSwingBreak", stableKey = "grim.breaking.no_swing_break", description = "Did not swing while breaking block", experimental = true)
+@CheckData(name = "NoSwingBreak", stableKey = "grim.breaking.no_swing_break", description = "Did not swing while breaking block")
 public class NoSwingBreak extends Check implements BlockBreakListener, PreViaPacketReceiveListener {
     private boolean sentAnimation;
     private boolean sentBreak;
