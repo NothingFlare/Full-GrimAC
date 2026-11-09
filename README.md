@@ -7,7 +7,7 @@
 [![Minecraft Version](https://img.shields.io/badge/Minecraft-1.8--1.21.11+-2b2b2b.svg?style=flat-square)](https://papermc.io)
 [![Java Version](https://img.shields.io/badge/Java-17+-2b2b2b.svg?style=flat-square)](https://www.oracle.com/java/)
 [![Folia](https://img.shields.io/badge/Folia-Supported-2b2b2b.svg?style=flat-square)](https://papermc.io/software/folia)
-[![Release](https://img.shields.io/badge/Release-1.5-2b2b2b.svg?style=flat-square)]()
+[![Release](https://img.shields.io/badge/Release-1.6-2b2b2b.svg?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-GPL--3.0-2b2b2b.svg?style=flat-square)](LICENSE)
 
 [Overview](#overview) • [Fork Notice](#fork-notice) • [Key Features](#key-features) • [Compatibility](#compatibility) • [Commands and Permissions](#commands-and-permissions) • [Configuration](#configuration) • [Localization](#localization) • [Installation](#installation) • [Compiling from Source](#compiling-from-source) • [License & Attribution](#license--attribution)
@@ -180,7 +180,7 @@ Full GrimAC includes built-in multi-language translations located in `plugins/Fu
 
 ## Installation
 
-1. Download `FullGrimAC-1.5.jar` from the release section.
+1. Download `FullGrimAC-1.6.jar` from the release section.
 2. Place the jar file into your server's `plugins/` directory.
 3. Start or restart the server to generate default configurations.
 4. Customize `plugins/FullGrimAC/config.yml` according to your server environment.
@@ -204,7 +204,7 @@ cd Full-GrimAC
 
 The resulting compiled binary will be located in:
 ```text
-bukkit/build/libs/FullGrimAC-1.5.jar
+bukkit/build/libs/FullGrimAC-1.6.jar
 ```
 
 ---
