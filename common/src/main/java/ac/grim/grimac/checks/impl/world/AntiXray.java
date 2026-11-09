@@ -131,6 +131,15 @@ public class AntiXray extends Check implements PacketReceiveListener {
                 isNeighborOpen(x - 1, y, z);
     }
 
+    private boolean isMinedRecently(int x, int y, int z) {
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+        return player.blockHistory.getRecentModifications(mod ->
+                Math.abs(currentTick - mod.tick()) <= 40 &&
+                mod.location().getX() == x && mod.location().getY() == y && mod.location().getZ() == z &&
+                (mod.newBlockContents() == null || mod.newBlockContents().getType().isAir())
+        ).iterator().hasNext();
+    }
+
     private boolean isNeighborOpen(int x, int y, int z) {
         WrappedBlockState state = player.compensatedWorld.getBlock(x, y, z);
         if (state == null || state.getType() == null) return true;
@@ -141,21 +150,14 @@ public class AntiXray extends Check implements PacketReceiveListener {
         }
 
         // Neighbor was recently broken by the player in blockHistory
-        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
-        boolean wasRecentlyMined = player.blockHistory.getRecentModifications(mod ->
-                Math.abs(currentTick - mod.tick()) <= 40 &&
-                mod.location().getX() == x && mod.location().getY() == y && mod.location().getZ() == z &&
-                (mod.newBlockContents() == null || mod.newBlockContents().getType().isAir())
-        ).iterator().hasNext();
-
-        if (wasRecentlyMined) {
+        if (isMinedRecently(x, y, z)) {
             return true;
         }
 
         // Check if neighbor is part of the same ore vein that is already exposed
         String neighborName = state.getType().getName().toLowerCase(Locale.ROOT);
         if (isOre(neighborName)) {
-            return touchesAirOrLiquid(x, y, z);
+            return touchesAirOrLiquid(x, y, z) || isMinedRecently(x, y, z);
         }
 
         return false;
@@ -170,7 +172,7 @@ public class AntiXray extends Check implements PacketReceiveListener {
     private boolean isOpen(int x, int y, int z) {
         WrappedBlockState state = player.compensatedWorld.getBlock(x, y, z);
         if (state == null || state.getType() == null) return true;
-        return state.getType().isAir() || !state.getType().isSolid();
+        return state.getType().isAir() || !state.getType().isSolid() || isMinedRecently(x, y, z);
     }
 
     private boolean hasLineOfSightToBlock(Vector3d eyePos, Vector3i blockPos) {
@@ -237,7 +239,9 @@ public class AntiXray extends Check implements PacketReceiveListener {
 
             WrappedBlockState state = player.compensatedWorld.getBlock(sx, sy, sz);
             if (state != null && state.getType() != null && state.getType().isSolid()) {
-                return false;
+                if (!isMinedRecently(sx, sy, sz)) {
+                    return false;
+                }
             }
         }
 

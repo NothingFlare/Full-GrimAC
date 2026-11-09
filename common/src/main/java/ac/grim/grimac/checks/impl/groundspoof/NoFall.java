@@ -201,8 +201,15 @@ public class NoFall extends Check implements PacketReceiveListener, PostPredicti
                 () -> {
                     try {
                         Object nativeObj = player.platformPlayer.getNative();
-                        Method damageMethod = nativeObj.getClass().getMethod("damage", double.class);
-                        damageMethod.invoke(nativeObj, expectedDamage);
+                        Method getFallDist = nativeObj.getClass().getMethod("getFallDistance");
+                        float serverFall = ((Number) getFallDist.invoke(nativeObj)).floatValue();
+
+                        // Only apply damage directly if server's fall distance was spoofed/reset to < 3.0
+                        // This prevents any double damage when the server applies it natively
+                        if (serverFall < 3.0f) {
+                            Method damageMethod = nativeObj.getClass().getMethod("damage", double.class);
+                            damageMethod.invoke(nativeObj, expectedDamage);
+                        }
                     } catch (Exception ignored) {
                     }
                 },

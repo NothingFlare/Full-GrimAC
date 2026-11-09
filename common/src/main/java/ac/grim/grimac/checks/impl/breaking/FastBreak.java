@@ -67,22 +67,27 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
 
             maximumBlockDamage = BlockBreakSpeed.getBlockDamage(player, block);
 
-            double breakDelay = System.currentTimeMillis() - lastFinishBreak;
+            // In vanilla, non-instabreak blocks enforce a 5-tick (250ms) delay before breaking the next block.
+            // Instant-break blocks (damage >= 1.0) have no delay.
+            if (maximumBlockDamage < 1.0) {
+                double breakDelay = System.currentTimeMillis() - lastFinishBreak;
 
-            // In vanilla, breaking a non-instabreak block requires 5 ticks (250-300ms) delay before starting the next block
-            if (breakDelay >= 225) {
-                blockDelayBalance = Math.max(0.0, blockDelayBalance * 0.85);
-            } else {
-                blockDelayBalance += (250 - breakDelay);
-            }
-
-            double maxDelayAdvantage = Math.max(250.0, player.getTransactionPing());
-            if (blockDelayBalance > maxDelayAdvantage) {
-                int type = VerboseCodecs.block(blockBreak.block.getType(), player.getClientVersion());
-                if (flag(V.write(verbose()).bool(true).ulong((long) breakDelay).f64(0).f64(blockDelayBalance).sint(type)) && shouldModifyPackets()) {
-                    blockBreak.cancel();
-                    player.resyncPosition(blockBreak.position);
+                if (breakDelay >= 225) {
+                    blockDelayBalance = Math.max(0.0, blockDelayBalance * 0.85);
+                } else {
+                    blockDelayBalance += (250 - breakDelay);
                 }
+
+                double maxDelayAdvantage = Math.max(250.0, player.getTransactionPing());
+                if (blockDelayBalance > maxDelayAdvantage) {
+                    int type = VerboseCodecs.block(blockBreak.block.getType(), player.getClientVersion());
+                    if (flag(V.write(verbose()).bool(true).ulong((long) breakDelay).f64(0).f64(blockDelayBalance).sint(type)) && shouldModifyPackets()) {
+                        blockBreak.cancel();
+                        player.resyncPosition(blockBreak.position);
+                    }
+                }
+            } else {
+                blockDelayBalance = 0;
             }
 
             clampBalance();
