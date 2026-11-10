@@ -175,6 +175,12 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
             long now = System.currentTimeMillis();
 
+            // Ignore swings while managing inventory or container
+            if (player.inventory.isContainerOpen() || (now - player.packetStateData.lastWindowClickTime < 1000)) {
+                decayClickHistory();
+                return;
+            }
+
             // Ignore swings caused by placing blocks or right-clicking
             if (player.packetOrderProcessor.isRightClicking() || (now - lastRightClickTime < 250)) {
                 return;
@@ -201,6 +207,9 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         }
 
         long now = System.currentTimeMillis();
+        if (player.inventory.isContainerOpen() || (now - player.packetStateData.lastWindowClickTime < 1000)) {
+            return;
+        }
         lastAttackTime = now;
 
         // If an animation already accompanied this attack in the last 150ms, do not register a duplicate click!
