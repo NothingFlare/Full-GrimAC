@@ -1,5 +1,6 @@
 package ac.grim.grimac.checks.impl.prediction;
 
+import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.checks.Check;
 import ac.grim.grimac.checks.CheckData;
 import ac.grim.grimac.checks.type.PostPredictionListener;
@@ -34,9 +35,27 @@ public class Phase extends Check implements PostPredictionListener {
 
             for (SimpleCollisionBox box : boxes) {
                 if (newBB.isIntersected(box) && !oldBB.isIntersected(box)) {
+                    int bx = (int) Math.floor((box.minX + box.maxX) / 2.0);
+                    int by = (int) Math.floor((box.minY + box.maxY) / 2.0);
+                    int bz = (int) Math.floor((box.minZ + box.maxZ) / 2.0);
+
+                    // If this block was recently broken/cleared by the player, do not flag phase setback
+                    int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+                    boolean recentlyBroken = player.blockHistory.getRecentModifications(mod ->
+                            Math.abs(currentTick - mod.tick()) <= 15 &&
+                            mod.location().getX() == bx &&
+                            mod.location().getY() == by &&
+                            mod.location().getZ() == bz &&
+                            (mod.newBlockContents() == null || mod.newBlockContents().getType().isAir())
+                    ).iterator().hasNext();
+
+                    if (recentlyBroken) {
+                        continue;
+                    }
+
                     if (player.getClientVersion().isOlderThanOrEquals(ClientVersion.V_1_8)) {
                         // A bit of a hacky way to get the block state, but this is much faster to use the tuinity method for grabbing collision boxes
-                        WrappedBlockState state = player.compensatedWorld.getBlock((box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2, (box.minZ + box.maxZ) / 2);
+                        WrappedBlockState state = player.compensatedWorld.getBlock(bx, by, bz);
                         if (BlockTags.ANVIL.contains(state.getType()) || state.getType() == StateTypes.CHEST || state.getType() == StateTypes.TRAPPED_CHEST) {
                             continue; // 1.8 glitchy block, ignore
                         }

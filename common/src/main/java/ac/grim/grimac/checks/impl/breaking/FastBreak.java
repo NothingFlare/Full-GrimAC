@@ -62,73 +62,83 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
             }
             WrappedBlockState block = clientOlderThanServer ? WrappedBlockState.getByGlobalId(player.getClientVersion(), player.getViaTranslatedClientBlockID(blockBreak.block.getGlobalId())) : blockBreak.block;
 
-            startBreak = System.currentTimeMillis() - (targetBlockPosition == null ? 50 : 0);
+            startBreak = System.currentTimeMillis();
             targetBlockPosition = blockBreak.position;
-
             maximumBlockDamage = BlockBreakSpeed.getBlockDamage(player, block);
 
-            // In vanilla, non-instabreak blocks enforce a 5-tick (250ms) delay before breaking the next block.
+            // In vanilla survival, breaking a non-instabreak block enforces a 5-tick (250ms) delay before starting the next block.
             // Instant-break blocks (damage >= 1.0) have no delay.
-            if (maximumBlockDamage < 1.0) {
-                double breakDelay = System.currentTimeMillis() - lastFinishBreak;
+            if (maximumBlockDamage < 1.0 && lastFinishBreak > 0) {
+                double breakDelay = (double) (System.currentTimeMillis() - lastFinishBreak);
 
-                if (breakDelay >= 225) {
-                    blockDelayBalance = Math.max(0.0, blockDelayBalance * 0.85);
+                // Allow for network jitter: vanilla client waits 250ms, allow >= 175ms without penalty
+                if (breakDelay >= 175.0) {
+                    blockDelayBalance = Math.max(0.0, blockDelayBalance * 0.8 - 50.0);
                 } else {
-                    blockDelayBalance += (250 - breakDelay);
+                    blockDelayBalance += (250.0 - breakDelay);
                 }
 
-                double maxDelayAdvantage = Math.max(250.0, player.getTransactionPing());
+                double maxDelayAdvantage = Math.max(800.0, player.getTransactionPing() * 2.5);
                 if (blockDelayBalance > maxDelayAdvantage) {
                     int type = VerboseCodecs.block(blockBreak.block.getType(), player.getClientVersion());
                     if (flag(V.write(verbose()).bool(true).ulong((long) breakDelay).f64(0).f64(blockDelayBalance).sint(type)) && shouldModifyPackets()) {
                         blockBreak.cancel();
-                        player.resyncPosition(blockBreak.position);
                     }
                 }
             } else {
-                blockDelayBalance = 0;
+                blockDelayBalance = Math.max(0.0, blockDelayBalance * 0.5);
             }
 
             clampBalance();
         }
 
+        if (blockBreak.action == DiggingAction.CANCELLED_DIGGING) {
+            targetBlockPosition = null;
+            maximumBlockDamage = 0;
+        }
+
         if (blockBreak.action == DiggingAction.FINISHED_DIGGING && targetBlockPosition != null) {
-            double predictedTime = Math.ceil(1.0 / maximumBlockDamage) * 50.0;
-            double realTime = System.currentTimeMillis() - startBreak;
-            double diff = predictedTime - realTime;
+            // In vanilla Minecraft, the client sends START_DIGGING at tick 0 and FINISHED_DIGGING at tick (ceil(1.0/damage) - 1).
+            // So the minimum elapsed time between START and FINISH packets is (ceil(1.0/damage) - 1) * 50ms.
+            double minAllowedTime = Math.max(0.0, (Math.ceil(1.0 / maximumBlockDamage) - 1.0) * 50.0);
+            double realTime = (double) (System.currentTimeMillis() - startBreak);
+            double diff = minAllowedTime - realTime;
 
             clampBalance();
 
-            // 1. Instant Break Exploit on non-instabreak blocks:
-            // If the block requires multiple ticks (maximumBlockDamage < 1.0) and was broken in less than half the vanilla required time or < 75ms
-            if (maximumBlockDamage < 1.0 && predictedTime >= 100.0 && (realTime < 75.0 || realTime < predictedTime * 0.45)) {
+            // 1. Blatant Instant Break Exploit on multi-tick blocks (Nuker, FastBreak 100%):
+            // If the block requires at least 4 ticks (minAllowedTime >= 150ms) and was broken in tick 0 (< 35ms)
+            if (maximumBlockDamage < 1.0 && minAllowedTime >= 150.0 && realTime < 35.0) {
                 int type = VerboseCodecs.block(blockBreak.block.getType(), player.getClientVersion());
                 if (flag(V.write(verbose()).bool(false).ulong(0).f64(diff).f64(diff).sint(type)) && shouldModifyPackets()) {
                     blockBreak.cancel();
-                    player.resyncPosition(blockBreak.position);
                     lastFinishBreak = startBreak = System.currentTimeMillis();
+                    targetBlockPosition = null;
+                    maximumBlockDamage = 0;
                     return;
                 }
             }
 
-            // 2. Sustained FastBreak balance check (tightened threshold from 1000ms down to 250ms)
-            if (diff < 20) {
-                blockBreakBalance = Math.max(0.0, blockBreakBalance * 0.85);
+            // 2. Sustained FastBreak balance buffer:
+            if (diff <= 25.0) {
+                // Legitimate mining: rapidly decay the advantage balance
+                blockBreakBalance = Math.max(0.0, blockBreakBalance * 0.85 - 25.0);
             } else {
+                // Cheating or faster than allowed: accumulate advantage
                 blockBreakBalance += diff;
             }
 
-            double maxBreakAdvantage = Math.max(250.0, player.getTransactionPing());
+            double maxBreakAdvantage = Math.max(750.0, player.getTransactionPing() * 2.0);
             if (blockBreakBalance > maxBreakAdvantage) {
                 int type = VerboseCodecs.block(blockBreak.block.getType(), player.getClientVersion());
                 if (flag(V.write(verbose()).bool(false).ulong(0).f64(diff).f64(blockBreakBalance).sint(type)) && shouldModifyPackets()) {
                     blockBreak.cancel();
-                    player.resyncPosition(blockBreak.position);
                 }
             }
 
             lastFinishBreak = startBreak = System.currentTimeMillis();
+            targetBlockPosition = null;
+            maximumBlockDamage = 0;
         }
     }
 
@@ -141,7 +151,7 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
     }
 
     private void clampBalance() {
-        double balance = Math.max(300.0, player.getTransactionPing() * 1.5);
+        double balance = Math.max(1000.0, player.getTransactionPing() * 2.5);
         blockBreakBalance = GrimMath.clamp(blockBreakBalance, -balance, balance);
         blockDelayBalance = GrimMath.clamp(blockDelayBalance, -balance, balance);
     }

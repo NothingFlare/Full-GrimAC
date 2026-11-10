@@ -820,6 +820,15 @@ public class CheckManagerListener extends PacketListenerAbstract {
 
         if (action == DiggingAction.FINISHED_DIGGING && isBreakable(blockBreak.block.getType())) {
             player.compensatedWorld.startPredicting();
+            player.blockHistory.add(
+                    new BlockModification(
+                            player.compensatedWorld.getBlock(blockBreak.position),
+                            WrappedBlockState.getByGlobalId(0),
+                            blockBreak.position,
+                            GrimAPI.INSTANCE.getTickManager().currentTick,
+                            BlockModification.Cause.START_DIGGING
+                    )
+            );
             player.compensatedWorld.updateBlock(blockBreak.position.x, blockBreak.position.y, blockBreak.position.z, 0);
             player.compensatedWorld.stopPredicting(packet);
         }

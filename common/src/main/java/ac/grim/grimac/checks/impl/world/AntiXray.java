@@ -54,28 +54,17 @@ public class AntiXray extends Check implements PacketReceiveListener {
                 boolean isRare = isRareOre(blockName);
 
                 // 1. Occluded / Line-of-Sight Protection (Freecam, Wall-hack, Xray Nuker):
-                // If a valuable block or ore is completely enclosed inside solid rock (no open neighbors),
-                // OR if the player has NO unobstructed line of sight from their eye position to any exposed face,
-                // the block is not visible to the player. The server cancels the dig and resyncs the block as solid.
+                // Paper Anti-Xray (engine-mode: 2) already masks unexposed ore blocks at chunk transmission level.
+                // We monitor and alert on abnormal mining without cancelling valid packets to prevent false desyncs.
                 if (isValuable && !PerformanceProtectionManager.shouldSimplifyAntiXray()) {
                     boolean isExposed = isExposedToOpenSpace(pos);
 
                     if (!isExposed) {
-                        if (flag("occluded_ore=" + blockName + " at " + pos.getX() + "," + pos.getY() + "," + pos.getZ()) && shouldModifyPackets()) {
-                            event.setCancelled(true);
-                            player.onPacketCancel();
-                            player.resyncPosition(pos);
-                            return;
-                        }
+                        flag("occluded_ore=" + blockName + " at " + pos.getX() + "," + pos.getY() + "," + pos.getZ());
                     } else {
                         Vector3d eyePos = new Vector3d(player.x, player.y + player.getEyeHeight(), player.z);
                         if (!hasLineOfSightToBlock(eyePos, pos)) {
-                            if (flag("no_line_of_sight=" + blockName + " at " + pos.getX() + "," + pos.getY() + "," + pos.getZ()) && shouldModifyPackets()) {
-                                event.setCancelled(true);
-                                player.onPacketCancel();
-                                player.resyncPosition(pos);
-                                return;
-                            }
+                            flag("no_line_of_sight=" + blockName + " at " + pos.getX() + "," + pos.getY() + "," + pos.getZ());
                         }
                     }
                 }
