@@ -33,17 +33,15 @@ import java.util.Deque;
 )
 public class CombatAutoClicker extends Check implements PacketReceiveListener, BlockBreakListener {
 
-    private static final int MAX_CPS = 18;
+    private static final int MAX_CPS = 20;
     private final Deque<Long> clickTimestamps = new ArrayDeque<>();
     private final Deque<Long> intervals = new ArrayDeque<>();
     private long lastClickTime = 0;
     private long lastSwingTime = 0;
     private long lastAttackTime = 0;
     private long lastInterval = 0;
-    private int lastTickDiff = 0;
     private int zeroDelayCount = 0;
     private int consecutiveDuplicateIntervals = 0;
-    private int identicalTickCount = 0;
     private double cpsBuffer = 0.0;
     private double sdBuffer = 0.0;
 
@@ -72,7 +70,6 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         cpsBuffer = Math.max(0.0, cpsBuffer - 1.0);
         sdBuffer = Math.max(0.0, sdBuffer - 0.5);
         consecutiveDuplicateIntervals = Math.max(0, consecutiveDuplicateIntervals - 2);
-        identicalTickCount = Math.max(0, identicalTickCount - 2);
     }
 
     private boolean isPlayerDigging(long now) {
@@ -82,13 +79,13 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         if (isDiggingBlock && (now - lastDiggingStartTime < 10000)) {
             return true;
         }
-        if (now - lastDiggingEndTime < 400) {
+        if (now - lastDiggingEndTime < 600) {
             return true;
         }
-        if (now - lastDiggingPacketTime < 400) {
+        if (now - lastDiggingPacketTime < 600) {
             return true;
         }
-        if (now - player.lastBlockBreak < 400) {
+        if (now - player.lastBlockBreak < 600) {
             return true;
         }
         return false;
@@ -160,7 +157,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
         // 2. Arm swing packets: Canonical single source of truth for physical clicks
         if (event.getPacketType() == PacketType.Play.Client.ANIMATION) {
-            if (player.gamemode == GameMode.CREATIVE) return;
+            if (player.gamemode == GameMode.CREATIVE || player.gamemode == GameMode.SPECTATOR) return;
 
             // In 1.9+, ignore offhand animations (e.g. placing offhand blocks / eating)
             if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9)) {
@@ -182,7 +179,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
             }
 
             // Ignore swings caused by placing blocks or right-clicking
-            if (player.packetOrderProcessor.isRightClicking() || (now - lastRightClickTime < 250)) {
+            if (player.packetOrderProcessor.isRightClicking() || (now - lastRightClickTime < 350)) {
                 return;
             }
 
@@ -225,26 +222,28 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
         long now = System.currentTimeMillis();
 
         // 1. Zero-delay clicks:
-        // Consecutive packets with <= 8ms difference indicate macro / packet flood
+        // Consecutive packets with <= 6ms difference indicate macro / packet flood
+        // Requires 6 consecutive zero-delay packets to prevent false flags on butterfly double-clicks / TCP bursts
         if (lastClickTime > 0) {
             long diff = now - lastClickTime;
-            if (diff <= 8) {
+            if (diff <= 6) {
                 zeroDelayCount++;
-                if (zeroDelayCount >= 3) {
-                    zeroDelayCount = 0;
+                if (zeroDelayCount >= 6) {
+                    zeroDelayCount = 3;
                     notifyBot();
-                    if (flag("zero_delay=" + diff + "ms (x3)") && shouldModifyPackets()) {
+                    if (flag("zero_delay=" + diff + "ms (x6)") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
                         return;
                     }
                 }
-            } else if (diff > 30) {
-                zeroDelayCount = 0;
+            } else if (diff > 25) {
+                zeroDelayCount = Math.max(0, zeroDelayCount - 2);
             }
         }
 
-        // 2. Sliding 1-second CPS check
+        // 2. Sliding 1-second CPS check:
+        // Blatant high CPS (>= 25) triggers immediately; 21-24 requires sustained buffer
         clickTimestamps.addLast(now);
         while (!clickTimestamps.isEmpty() && now - clickTimestamps.peekFirst() > 1000) {
             clickTimestamps.pollFirst();
@@ -252,8 +251,7 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
 
         int cps = clickTimestamps.size();
         if (cps > MAX_CPS) {
-            // Blatant high CPS (>= 22) triggers immediately; 19-21 requires small buffer
-            if (cps >= 22) {
+            if (cps >= 25) {
                 notifyBot();
                 if (flag("cps=" + cps) && shouldModifyPackets()) {
                     event.setCancelled(true);
@@ -262,8 +260,8 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                 }
             } else {
                 cpsBuffer += (cps - MAX_CPS) * 0.5;
-                if (cpsBuffer >= 2.0) {
-                    cpsBuffer = 1.0;
+                if (cpsBuffer >= 4.0) {
+                    cpsBuffer = 2.0;
                     notifyBot();
                     if (flag("cps=" + cps) && shouldModifyPackets()) {
                         event.setCancelled(true);
@@ -276,68 +274,63 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
             cpsBuffer = Math.max(0.0, cpsBuffer - 0.5);
         }
 
-        // 3. Robotic consistency & interval pattern checks
+        // 3. Robotic consistency & interval pattern checks:
         if (!PerformanceProtectionManager.shouldSkipInventory() && lastClickTime > 0) {
             long interval = now - lastClickTime;
 
-            if (interval >= 20 && interval <= 500) {
-                // 3a. Constant delay check with 3ms network ping tolerance (e.g. 50ms +/- 3ms)
-                if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 3) {
-                    consecutiveDuplicateIntervals++;
-                    if (consecutiveDuplicateIntervals >= 5) {
-                        consecutiveDuplicateIntervals = 3;
-                        notifyBot();
-                        flag("constant_delay: " + interval + "ms (x5)");
-                    }
-                } else if (Math.abs(interval - lastInterval) > 4) {
-                    consecutiveDuplicateIntervals = Math.max(0, consecutiveDuplicateIntervals - 1);
-                }
-                lastInterval = interval;
+            if (interval >= 25 && interval <= 500) {
+                // Filter out Minecraft tick quantization (50ms, 100ms) and Windows OS 15.6ms timer steps
+                boolean isTickQuantized = (Math.abs(interval - 50) <= 4
+                        || Math.abs(interval - 100) <= 4
+                        || Math.abs(interval - 15) <= 2
+                        || Math.abs(interval - 31) <= 2
+                        || Math.abs(interval - 47) <= 2);
 
-                // 3b. Fixed tick delta check (1 tick = 50ms or 2 ticks = 100ms)
-                int tickDiff = (int) Math.round((double) interval / 50.0);
-                if (lastTickDiff > 0 && tickDiff == lastTickDiff && (tickDiff == 1 || tickDiff == 2) && Math.abs(interval - (tickDiff * 50)) <= 4) {
-                    identicalTickCount++;
-                    if (identicalTickCount >= 6) {
-                        identicalTickCount = 4;
-                        notifyBot();
-                        flag("tick_locked: " + tickDiff + " ticks (~" + (tickDiff * 50) + "ms)");
-                    }
-                } else {
-                    identicalTickCount = Math.max(0, identicalTickCount - 1);
-                }
-                lastTickDiff = tickDiff;
-
-                // 3c. Rolling standard deviation across 10-14 samples
-                intervals.addLast(interval);
-                if (intervals.size() > 14) {
-                    intervals.pollFirst();
-                }
-
-                if (intervals.size() >= 10) {
-                    double mean = calculateMean(intervals);
-                    double sd = calculateSD(intervals, mean);
-                    player.packetStateData.currentClickStdDev = sd;
-                    player.packetStateData.currentMeanInterval = mean;
-
-                    // Autoclickers (even randomized ones) produce standard deviation < 3.5ms.
-                    // Legitimate human clicking naturally produces standard deviation > 12ms.
-                    double maxAllowedSd = (mean < 70.0) ? 2.5 : (mean < 120.0 ? 3.2 : 3.8);
-                    if (sd < maxAllowedSd && mean >= 30.0) {
-                        sdBuffer += 1.0;
-                        if (sdBuffer >= 1.5) {
-                            sdBuffer = 0.8;
+                if (!isTickQuantized) {
+                    // 3a. Constant delay check across 12 consecutive identical intervals
+                    if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 1) {
+                        consecutiveDuplicateIntervals++;
+                        if (consecutiveDuplicateIntervals >= 12) {
+                            consecutiveDuplicateIntervals = 6;
                             notifyBot();
-                            flag("robotic_interval: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
+                            flag("constant_delay: " + interval + "ms (x12)");
                         }
-                    } else if (sd > maxAllowedSd + 3.0) {
-                        sdBuffer = Math.max(0.0, sdBuffer - 0.4);
+                    } else if (Math.abs(interval - lastInterval) > 3) {
+                        consecutiveDuplicateIntervals = Math.max(0, consecutiveDuplicateIntervals - 1);
+                    }
+                    lastInterval = interval;
+
+                    // 3b. Rolling standard deviation across 16 samples
+                    intervals.addLast(interval);
+                    if (intervals.size() > 18) {
+                        intervals.pollFirst();
+                    }
+
+                    if (intervals.size() >= 16) {
+                        double mean = calculateMean(intervals);
+                        double sd = calculateSD(intervals, mean);
+                        player.packetStateData.currentClickStdDev = sd;
+                        player.packetStateData.currentMeanInterval = mean;
+
+                        // Autoclickers with constant delay produce standard deviation < 1.0ms.
+                        // Human clicking naturally produces standard deviation > 8ms.
+                        double maxAllowedSd = (mean < 70.0) ? 1.0 : (mean < 120.0 ? 1.4 : 1.8);
+                        if (sd < maxAllowedSd && mean >= 35.0) {
+                            sdBuffer += 1.0;
+                            if (sdBuffer >= 3.0) {
+                                sdBuffer = 1.5;
+                                notifyBot();
+                                flag("robotic_interval: sd=" + String.format("%.2f", sd) + "ms, mean=" + String.format("%.1f", mean) + "ms");
+                            }
+                        } else if (sd > maxAllowedSd + 3.0) {
+                            sdBuffer = Math.max(0.0, sdBuffer - 0.5);
+                        }
                     }
                 }
             } else if (interval > 500) {
                 decayClickHistory();
                 lastInterval = 0;
-                lastTickDiff = 0;
+                intervals.clear();
             }
         }
 

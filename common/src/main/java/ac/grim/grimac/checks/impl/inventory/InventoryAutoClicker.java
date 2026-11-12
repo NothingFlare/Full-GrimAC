@@ -77,8 +77,8 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                 long diff = now - lastClickTime;
                 if (diff <= 5) {
                     zeroDelayCount++;
-                    // QUICK_MOVE (shift-click depositing into chest) allows higher batch allowance (up to 14 packets)
-                    int maxAllowedZeroDelay = (clickType == WindowClickType.QUICK_MOVE) ? 14 : 8;
+                    // QUICK_MOVE (shift-click) and SWAP (hotbar 1-9 keys) allow higher batch allowance (up to 14 packets)
+                    int maxAllowedZeroDelay = (clickType == WindowClickType.QUICK_MOVE || clickType == WindowClickType.SWAP) ? 14 : 8;
 
                     if (zeroDelayCount >= maxAllowedZeroDelay) {
                         zeroDelayCount = maxAllowedZeroDelay - 4;

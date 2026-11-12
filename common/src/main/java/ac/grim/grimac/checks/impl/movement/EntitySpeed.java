@@ -6,12 +6,16 @@
  */
 package ac.grim.grimac.checks.impl.movement;
 
+import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.checks.Check;
 import ac.grim.grimac.checks.CheckData;
 import ac.grim.grimac.checks.type.PostPredictionListener;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.update.PredictionComplete;
 import com.github.retrooper.packetevents.protocol.player.GameMode;
+import com.github.retrooper.packetevents.protocol.world.states.WrappedBlockState;
+import com.github.retrooper.packetevents.protocol.world.states.type.StateType;
+import com.github.retrooper.packetevents.protocol.world.states.type.StateTypes;
 
 import java.util.Collections;
 
@@ -24,6 +28,7 @@ import java.util.Collections;
 public class EntitySpeed extends Check implements PostPredictionListener {
 
     private double buffer = 0.0;
+    private int lastTechnicalMovementTick = -100;
 
     public EntitySpeed(GrimPlayer player) {
         super(player);
@@ -50,6 +55,12 @@ public class EntitySpeed extends Check implements PostPredictionListener {
                 || player.likelyExplosions != null || player.firstBreadExplosion != null
                 || player.wasTouchingWater || player.wasWasTouchingWater
                 || player.riptideSpinAttackTicks > 0) {
+            buffer = Math.max(0.0, buffer - 0.5);
+            return;
+        }
+
+        // Exempt technical redstone / block movements (pistons, slime launchers, piston bolts, honey conveyors, etc.)
+        if (isTechnicalMovement()) {
             buffer = Math.max(0.0, buffer - 0.5);
             return;
         }
@@ -94,5 +105,85 @@ public class EntitySpeed extends Check implements PostPredictionListener {
             buffer = Math.max(0.0, buffer - 0.3);
             reward();
         }
+    }
+
+    private boolean isTechnicalMovement() {
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+
+        // 1. Direct piston displacement in uncertainty queues
+        if (Collections.max(player.uncertaintyHandler.pistonX) > 0.001
+                || Collections.max(player.uncertaintyHandler.pistonY) > 0.001
+                || Collections.max(player.uncertaintyHandler.pistonZ) > 0.001) {
+            lastTechnicalMovementTick = currentTick;
+            return true;
+        }
+
+        // 2. Active pistons in compensated world or slime piston bounces
+        if (!player.compensatedWorld.activePistons.isEmpty()
+                || !player.uncertaintyHandler.slimePistonBounces.isEmpty()) {
+            lastTechnicalMovementTick = currentTick;
+            return true;
+        }
+
+        // 3. Slime blocks, honey blocks, and bouncy block interactions
+        if (player.uncertaintyHandler.isSteppingOnSlime
+                || player.uncertaintyHandler.wasSteppingOnSlime
+                || player.uncertaintyHandler.isSteppingOnHoney
+                || player.uncertaintyHandler.isSteppingOnBouncyBlock
+                || player.uncertaintyHandler.wasSteppingOnBouncyBlock
+                || player.uncertaintyHandler.thisTickSlimeBlockUncertainty != 0
+                || player.uncertaintyHandler.nextTickSlimeBlockUncertainty != 0) {
+            lastTechnicalMovementTick = currentTick;
+            return true;
+        }
+
+        // 4. Bubble columns, shulker boxes/entities, and step movements
+        if (player.uncertaintyHandler.isSteppingNearBubbleColumn
+                || player.uncertaintyHandler.isSteppingNearShulker
+                || player.uncertaintyHandler.isNearGlitchyBlock
+                || player.uncertaintyHandler.isOrWasNearGlitchyBlock
+                || player.uncertaintyHandler.isStepMovement) {
+            lastTechnicalMovementTick = currentTick;
+            return true;
+        }
+
+        // 5. Proximity to piston or slime/honey mechanisms in world
+        if (isNearPistonMechanism()) {
+            lastTechnicalMovementTick = currentTick;
+            return true;
+        }
+
+        // 6. Inertial flight grace period (25 ticks = 1.25 seconds after last technical push)
+        if (Math.abs(currentTick - lastTechnicalMovementTick) <= 25) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean isNearPistonMechanism() {
+        int px = (int) Math.floor(player.x);
+        int py = (int) Math.floor(player.y);
+        int pz = (int) Math.floor(player.z);
+
+        for (int x = px - 2; x <= px + 2; x++) {
+            for (int y = py - 1; y <= py + 2; y++) {
+                for (int z = pz - 2; z <= pz + 2; z++) {
+                    WrappedBlockState state = player.compensatedWorld.getBlock(x, y, z);
+                    if (state != null && state.getType() != null) {
+                        StateType type = state.getType();
+                        if (type == StateTypes.PISTON
+                                || type == StateTypes.STICKY_PISTON
+                                || type == StateTypes.PISTON_HEAD
+                                || type == StateTypes.MOVING_PISTON
+                                || type == StateTypes.SLIME_BLOCK
+                                || type == StateTypes.HONEY_BLOCK) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 }
