@@ -70,31 +70,44 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                     || clickType == WindowClickType.PICKUP_ALL
                     || clickType == WindowClickType.CLONE);
 
+            // Quick transfer operations: Shift-click (QUICK_MOVE) and hotbar number key swapping (SWAP)
+            boolean isQuickTransfer = (clickType == WindowClickType.QUICK_MOVE
+                    || clickType == WindowClickType.SWAP);
+
+            // Reset stale state if more than 1 second elapsed since last click
+            if (lastClickTime > 0 && now - lastClickTime > 1000) {
+                zeroDelayCount = 0;
+                consecutiveDuplicates = 0;
+                cpsBuffer = 0.0;
+                intervals.clear();
+            }
+
             // 1. Zero-delay packet flood detection (ChestStealer / Nuker / Macro):
-            // Normal human clicking over TCP with Netty batching may group 3-6 packets in a single flush.
-            // ChestStealer cheats loot 15-27 slots in 0ms.
+            // Normal human clicking over TCP with Netty batching may group packets in a single network flush.
+            // When looting a double chest (54 slots) or using shift-double-click, up to 54-60 packets can arrive in a single flush.
             if (!isVanillaMultiAction && lastClickTime > 0) {
                 long diff = now - lastClickTime;
                 if (diff <= 5) {
                     zeroDelayCount++;
-                    // QUICK_MOVE (shift-click) and SWAP (hotbar 1-9 keys) allow higher batch allowance (up to 14 packets)
-                    int maxAllowedZeroDelay = (clickType == WindowClickType.QUICK_MOVE || clickType == WindowClickType.SWAP) ? 14 : 8;
+                    // QUICK_MOVE (shift-click) and SWAP (hotbar 1-9 keys) in containers allow up to 64 packets in a batch
+                    int maxAllowedZeroDelay = isQuickTransfer ? 64 : 10;
 
                     if (zeroDelayCount >= maxAllowedZeroDelay) {
-                        zeroDelayCount = maxAllowedZeroDelay - 4;
+                        zeroDelayCount = maxAllowedZeroDelay - 10;
                         if (flag("zero_delay=" + diff + "ms (x" + maxAllowedZeroDelay + ")") && shouldModifyPackets()) {
                             event.setCancelled(true);
                             player.onPacketCancel();
                             InventoryResync.resync(player);
                         }
                     }
-                } else if (diff > 25) {
-                    zeroDelayCount = Math.max(0, zeroDelayCount - 2);
+                } else if (diff > 15) {
+                    // Distinct click/frame, reset zero-delay batch accumulator
+                    zeroDelayCount = 0;
                 }
             }
 
             // 2. Sliding 1-second CPS check:
-            // Allows rapid human bursts (shift-clicking 10-15 stacks in a chest) while blocking Cheats (40-60 CPS)
+            // Allows rapid human sweeps across chests (up to 54-60 slots/sec for double chests) while blocking Cheats (80-120+ CPS)
             if (!isVanillaMultiAction) {
                 clickTimestamps.addLast(now);
                 while (!clickTimestamps.isEmpty() && now - clickTimestamps.peekFirst() > 1000) {
@@ -102,30 +115,35 @@ public class InventoryAutoClicker extends Check implements PacketReceiveListener
                 }
 
                 int cps = clickTimestamps.size();
-                if (cps > MAX_CPS) {
-                    cpsBuffer += (cps - MAX_CPS);
-                    if (cpsBuffer >= 6.0) {
-                        cpsBuffer = 3.0;
-                        if (flag("cps=" + cps) && shouldModifyPackets()) {
+                int allowedCps = isQuickTransfer ? 64 : MAX_CPS;
+
+                if (cps > allowedCps) {
+                    cpsBuffer += (cps - allowedCps);
+                    if (cpsBuffer >= 8.0) {
+                        cpsBuffer = 4.0;
+                        if (flag("cps=" + cps + " (allowed=" + allowedCps + ")") && shouldModifyPackets()) {
                             event.setCancelled(true);
                             player.onPacketCancel();
                             InventoryResync.resync(player);
                         }
                     }
                 } else {
-                    cpsBuffer = Math.max(0.0, cpsBuffer - 1.0);
+                    cpsBuffer = Math.max(0.0, cpsBuffer - 2.0);
                 }
             }
 
             // 3. Robotic interval & duplicate consistency check:
-            // Filters out Minecraft tick quantization (50ms, 100ms) and Windows OS 15.6ms timer steps
-            if (!isVanillaMultiAction && lastClickTime > 0) {
+            // Only applies to single-click interactions (PICKUP / THROW). Quick transfers (QUICK_MOVE / SWAP)
+            // across a uniform geometric grid naturally have low variance when sweeping with mouse.
+            if (!isVanillaMultiAction && !isQuickTransfer && lastClickTime > 0) {
                 long interval = now - lastClickTime;
                 if (interval >= 25 && interval <= 500) {
                     boolean isTickQuantized = (Math.abs(interval - 50) <= 4
                             || Math.abs(interval - 100) <= 4
                             || Math.abs(interval - 15) <= 2
-                            || Math.abs(interval - 31) <= 2);
+                            || Math.abs(interval - 16) <= 2
+                            || Math.abs(interval - 31) <= 2
+                            || Math.abs(interval - 33) <= 2);
 
                     if (!isTickQuantized) {
                         if (lastInterval > 0 && Math.abs(interval - lastInterval) <= 1) {
