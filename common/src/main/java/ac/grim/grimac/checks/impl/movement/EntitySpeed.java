@@ -29,6 +29,7 @@ public class EntitySpeed extends Check implements PostPredictionListener {
 
     private double buffer = 0.0;
     private int lastTechnicalMovementTick = -100;
+    private int lastKnockbackTick = -100;
 
     public EntitySpeed(GrimPlayer player) {
         super(player);
@@ -51,10 +52,14 @@ public class EntitySpeed extends Check implements PostPredictionListener {
         }
 
         // Exempt external forces that legitimately boost velocity
-        if (player.likelyKB != null || player.firstBreadKB != null
-                || player.likelyExplosions != null || player.firstBreadExplosion != null
-                || player.wasTouchingWater || player.wasWasTouchingWater
+        if (player.wasTouchingWater || player.wasWasTouchingWater
                 || player.riptideSpinAttackTicks > 0) {
+            buffer = Math.max(0.0, buffer - 0.5);
+            return;
+        }
+
+        // Exempt knockback from sword hits, mob attacks, arrows, and explosions (including 25-tick inertial flight)
+        if (isKnockbackMovement()) {
             buffer = Math.max(0.0, buffer - 0.5);
             return;
         }
@@ -83,8 +88,8 @@ public class EntitySpeed extends Check implements PostPredictionListener {
         double baseMax;
         if (player.uncertaintyHandler.isSteppingOnIce) {
             baseMax = 1.05 * speedFactor;
-        } else if (!player.onGround || !player.lastOnGround || player.isSprinting) {
-            // In air, jumping, sprinting, strafe jumping, or 2-block ceiling head-hitters
+        } else if (!player.onGround || !player.lastOnGround || player.isSprinting || player.lastSprinting || player.lastSprintingForSpeed) {
+            // In air, jumping, sprinting, strafe jumping, 2-block ceiling head-hitters, or sprint reset inertia after attack
             baseMax = 0.88 * speedFactor;
         } else {
             // Normal walking on ground
@@ -112,6 +117,32 @@ public class EntitySpeed extends Check implements PostPredictionListener {
                 executeViolationSetback();
             }
         }
+    }
+
+    private boolean isKnockbackMovement() {
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+
+        // 1. Direct knockback or explosion active this tick
+        if (player.likelyKB != null || player.firstBreadKB != null
+                || player.likelyExplosions != null || player.firstBreadExplosion != null
+                || (player.predictedVelocity != null && (player.predictedVelocity.isKnockback() || player.predictedVelocity.isExplosion()))) {
+            lastKnockbackTick = currentTick;
+            return true;
+        }
+
+        // 2. Pending unacknowledged knockback or explosion packets sent from server
+        if (player.checkManager.getKnockbackHandler().hasActiveOrPendingKnockback()
+                || player.checkManager.getExplosionHandler().hasActiveOrPendingExplosion()) {
+            lastKnockbackTick = currentTick;
+            return true;
+        }
+
+        // 3. Post-knockback inertial flight grace period (25 ticks = 1.25 seconds)
+        if (Math.abs(currentTick - lastKnockbackTick) <= 25) {
+            return true;
+        }
+
+        return false;
     }
 
     private boolean isTechnicalMovement() {

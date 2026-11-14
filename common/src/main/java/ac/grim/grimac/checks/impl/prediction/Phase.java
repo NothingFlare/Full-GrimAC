@@ -20,6 +20,7 @@ import java.util.List;
 @CheckData(name = "Phase", stableKey = "grim.prediction.phase", description = "Moved into a solid block during movement prediction", setback = 1, decay = 0.005)
 public class Phase extends Check implements PostPredictionListener {
     private SimpleCollisionBox oldBB;
+    private int lastKnockbackTick = -100;
 
     public Phase(GrimPlayer player) {
         super(player);
@@ -34,10 +35,23 @@ public class Phase extends Check implements PostPredictionListener {
             List<SimpleCollisionBox> boxes = new ArrayList<>();
             Collisions.getCollisionBoxes(player, newBB, boxes, false);
 
+            int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+            boolean hasActiveKB = player.likelyKB != null || player.firstBreadKB != null
+                    || (player.predictedVelocity != null && (player.predictedVelocity.isKnockback() || player.predictedVelocity.isExplosion()))
+                    || player.checkManager.getKnockbackHandler().hasActiveOrPendingKnockback()
+                    || player.checkManager.getExplosionHandler().hasActiveOrPendingExplosion();
+
+            if (hasActiveKB) {
+                lastKnockbackTick = currentTick;
+            }
+
+            boolean isRecentKnockback = Math.abs(currentTick - lastKnockbackTick) <= 25;
+
             boolean isFluidOrSliding = player.wasTouchingWater || player.wasWasTouchingWater
                     || player.isSwimming || player.wasSwimming
                     || player.isGliding || player.wasGliding
-                    || player.pose == Pose.SWIMMING || player.pose == Pose.FALL_FLYING;
+                    || player.pose == Pose.SWIMMING || player.pose == Pose.FALL_FLYING
+                    || isRecentKnockback;
 
             double minPenetration = isFluidOrSliding ? 0.08 : 0.04;
 
@@ -72,7 +86,6 @@ public class Phase extends Check implements PostPredictionListener {
                 int bz = (int) Math.floor((box.minZ + box.maxZ) / 2.0);
 
                     // If this block was recently broken/cleared by the player, do not flag phase setback
-                    int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
                     boolean recentlyBroken = player.blockHistory.getRecentModifications(mod ->
                             Math.abs(currentTick - mod.tick()) <= 15 &&
                             mod.location().getX() == bx &&

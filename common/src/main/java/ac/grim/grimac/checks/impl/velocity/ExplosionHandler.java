@@ -125,6 +125,10 @@ public class ExplosionHandler extends Check implements PacketSendListener, PostP
         return null;
     }
 
+    public boolean hasActiveOrPendingExplosion() {
+        return !firstBreadMap.isEmpty() || lastExplosionsKnownTaken != null || firstBreadAddedExplosion != null;
+    }
+
     public boolean shouldIgnoreForPrediction(VectorData data) {
         if (data.isExplosion() && data.isFirstBreadExplosion()) {
             return player.firstBreadExplosion.offset > offsetToFlag;

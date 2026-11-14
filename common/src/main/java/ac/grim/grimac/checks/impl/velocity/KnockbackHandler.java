@@ -103,6 +103,10 @@ public class KnockbackHandler extends Check implements PacketSendListener, PostP
         return new Pair<>(null, null);
     }
 
+    public boolean hasActiveOrPendingKnockback() {
+        return !firstBreadMap.isEmpty() || !lastKnockbackKnownTaken.isEmpty() || firstBreadOnlyKnockback != null;
+    }
+
     private void addPlayerKnockback(int entityID, int breadOne, @NotNull Vector3dm knockback) {
         firstBreadMap.add(new VelocityData(entityID, breadOne, player.getSetbackTeleportUtil().isSendingSetback, knockback));
     }
