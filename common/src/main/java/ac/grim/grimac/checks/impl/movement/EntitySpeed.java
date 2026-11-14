@@ -76,34 +76,41 @@ public class EntitySpeed extends Check implements PostPredictionListener {
 
         // Legitimate max speeds in vanilla:
         // Ground sprint: ~0.286 m/tick * speedFactor
-        // Sprint jumping in air: peak ~0.36 m/tick * speedFactor
-        // Ice: can reach ~0.55 m/tick
+        // Sprint jumping forward: peak ~0.62 m/tick * speedFactor
+        // 45-degree angle sprint jumping (W+A / W+D, strafing): peak ~0.72 m/tick * speedFactor
+        // Low ceiling / head-hitter jump sprint (caves, 2-block tunnels): peak ~0.88 m/tick * speedFactor
+        // Ice sprint jumping: can reach ~1.05 m/tick * speedFactor
         double baseMax;
         if (player.uncertaintyHandler.isSteppingOnIce) {
-            baseMax = 0.55 * speedFactor;
-        } else if (!player.onGround && !player.lastOnGround) {
-            baseMax = 0.36 * speedFactor;
+            baseMax = 1.05 * speedFactor;
+        } else if (!player.onGround || !player.lastOnGround || player.isSprinting) {
+            // In air, jumping, sprinting, strafe jumping, or 2-block ceiling head-hitters
+            baseMax = 0.88 * speedFactor;
         } else {
-            baseMax = 0.286 * speedFactor;
+            // Normal walking on ground
+            baseMax = 0.35 * speedFactor;
         }
 
-        // Maximum legitimate vanilla entity push from behind is at most 0.035 m/tick
-        double maxLegitSpeed = baseMax + 0.035;
+        // Vanilla entity collision push can add up to ~0.08 m/tick per entity (capped at 0.40 m/tick)
+        double pushAllowance = Math.min(0.40, colliding * 0.08);
+        double maxLegitSpeed = baseMax + pushAllowance;
 
-        // Tolerance before flagging: 0.04
-        if (speed > maxLegitSpeed + 0.04) {
-            double excess = speed - maxLegitSpeed;
-            buffer += Math.min(2.0, excess * 10.0);
-
-            if (buffer >= 2.0) {
-                buffer = 1.0;
-                if (flag("speed=" + String.format("%.3f", speed) + ", max=" + String.format("%.3f", maxLegitSpeed) + ", entities=" + colliding) && shouldModifyPackets()) {
-                    executeViolationSetback();
-                }
-            }
-        } else {
-            buffer = Math.max(0.0, buffer - 0.3);
+        // If speed is within legitimate vanilla limits, immediately decay buffer and return
+        if (speed <= maxLegitSpeed + 0.05) {
+            buffer = Math.max(0.0, buffer - 0.5);
             reward();
+            return;
+        }
+
+        // Only flag sustained impossible speeds (e.g. EntitySpeed / PushBoost cheats reaching 1.5 - 50 m/tick)
+        double excess = speed - maxLegitSpeed;
+        buffer += Math.min(2.0, excess * 2.0);
+
+        if (buffer >= 5.0) {
+            buffer = 3.0;
+            if (flag("speed=" + String.format("%.3f", speed) + ", max=" + String.format("%.3f", maxLegitSpeed) + ", entities=" + colliding) && shouldModifyPackets()) {
+                executeViolationSetback();
+            }
         }
     }
 

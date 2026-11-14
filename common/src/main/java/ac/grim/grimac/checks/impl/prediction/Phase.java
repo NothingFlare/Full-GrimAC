@@ -7,6 +7,7 @@ import ac.grim.grimac.checks.type.PostPredictionListener;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.update.PredictionComplete;
 import ac.grim.grimac.utils.collisions.datatypes.SimpleCollisionBox;
+import ac.grim.grimac.utils.enums.Pose;
 import ac.grim.grimac.utils.nmsutil.Collisions;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
 import com.github.retrooper.packetevents.protocol.world.states.WrappedBlockState;
@@ -33,11 +34,42 @@ public class Phase extends Check implements PostPredictionListener {
             List<SimpleCollisionBox> boxes = new ArrayList<>();
             Collisions.getCollisionBoxes(player, newBB, boxes, false);
 
+            boolean isFluidOrSliding = player.wasTouchingWater || player.wasWasTouchingWater
+                    || player.isSwimming || player.wasSwimming
+                    || player.isGliding || player.wasGliding
+                    || player.pose == Pose.SWIMMING || player.pose == Pose.FALL_FLYING;
+
+            double minPenetration = isFluidOrSliding ? 0.08 : 0.04;
+
             for (SimpleCollisionBox box : boxes) {
-                if (newBB.isIntersected(box) && !oldBB.isIntersected(box)) {
-                    int bx = (int) Math.floor((box.minX + box.maxX) / 2.0);
-                    int by = (int) Math.floor((box.minY + box.maxY) / 2.0);
-                    int bz = (int) Math.floor((box.minZ + box.maxZ) / 2.0);
+                if (!newBB.isIntersected(box)) continue;
+
+                double overlapX = Math.min(newBB.maxX, box.maxX) - Math.max(newBB.minX, box.minX);
+                double overlapY = Math.min(newBB.maxY, box.maxY) - Math.max(newBB.minY, box.minY);
+                double overlapZ = Math.min(newBB.maxZ, box.maxZ) - Math.max(newBB.minZ, box.minZ);
+
+                if (overlapX <= 0 || overlapY <= 0 || overlapZ <= 0) continue;
+
+                double penetrationDepth = Math.min(overlapX, Math.min(overlapY, overlapZ));
+                if (penetrationDepth <= minPenetration) {
+                    continue; // Surface grazing / edge contact, not an illegal block phase
+                }
+
+                if (oldBB != null && oldBB.isIntersected(box)) {
+                    double oldOverlapX = Math.min(oldBB.maxX, box.maxX) - Math.max(oldBB.minX, box.minX);
+                    double oldOverlapY = Math.min(oldBB.maxY, box.maxY) - Math.max(oldBB.minY, box.minY);
+                    double oldOverlapZ = Math.min(oldBB.maxZ, box.maxZ) - Math.max(oldBB.minZ, box.minZ);
+                    if (oldOverlapX > 0 && oldOverlapY > 0 && oldOverlapZ > 0) {
+                        double oldPenetration = Math.min(oldOverlapX, Math.min(oldOverlapY, oldOverlapZ));
+                        if (penetrationDepth <= oldPenetration + 0.02) {
+                            continue; // Continuing legitimate contact along existing collision boundary
+                        }
+                    }
+                }
+
+                int bx = (int) Math.floor((box.minX + box.maxX) / 2.0);
+                int by = (int) Math.floor((box.minY + box.maxY) / 2.0);
+                int bz = (int) Math.floor((box.minZ + box.maxZ) / 2.0);
 
                     // If this block was recently broken/cleared by the player, do not flag phase setback
                     int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
@@ -64,7 +96,6 @@ public class Phase extends Check implements PostPredictionListener {
                     return;
                 }
             }
-        }
 
         oldBB = player.boundingBox;
         reward();

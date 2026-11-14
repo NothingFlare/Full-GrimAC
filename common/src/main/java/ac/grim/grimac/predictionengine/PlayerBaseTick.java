@@ -194,40 +194,37 @@ public final class PlayerBaseTick {
         }
     }
 
-    // 1.14
+    // 1.14+
     public static void updatePlayerPose(GrimPlayer player) {
-        if (canEnterPose(player, Pose.SWIMMING, player.x, player.y, player.z)) {
-            Pose pose;
-            if (player.isGliding) {
-                pose = Pose.FALL_FLYING;
-            } else if (player.isInBed) {
-                pose = Pose.SLEEPING;
-            } else if (player.isSwimming) {
-                pose = Pose.SWIMMING;
-            } else if (player.isRiptidePose) {
-                pose = Pose.SPIN_ATTACK;
-            } else if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9) && player.getClientVersion().isOlderThan(ClientVersion.V_1_14) && player.isSneaking) {
-                pose = Pose.NINE_CROUCHING;
-            } else if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_14) && player.isSneaking && !player.isFlying) {
+        Pose pose;
+        if (player.isGliding) {
+            pose = Pose.FALL_FLYING;
+        } else if (player.isInBed) {
+            pose = Pose.SLEEPING;
+        } else if (player.isSwimming) {
+            pose = Pose.SWIMMING;
+        } else if (player.isRiptidePose) {
+            pose = Pose.SPIN_ATTACK;
+        } else if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9) && player.getClientVersion().isOlderThan(ClientVersion.V_1_14) && player.isSneaking) {
+            pose = Pose.NINE_CROUCHING;
+        } else if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_14) && player.isSneaking && !player.isFlying) {
+            pose = Pose.CROUCHING;
+        } else {
+            pose = Pose.STANDING;
+        }
+
+        // In 1.14+, if the player cannot fit into their desired pose, fall back to crouching, then crawling/swimming (0.6 height)
+        if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_14) &&
+                !player.inVehicle() && !canEnterPose(player, pose, player.x, player.y, player.z)) {
+            if (canEnterPose(player, Pose.CROUCHING, player.x, player.y, player.z)) {
                 pose = Pose.CROUCHING;
             } else {
-                pose = Pose.STANDING;
+                pose = Pose.SWIMMING;
             }
-
-            // I'm not too sure about this code, but it appears like this is only a 1.14+ feature
-            // In my testing this seems good but still don't have full confidence for versions like 1.13
-            if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_14) &&
-                    !player.inVehicle() && !canEnterPose(player, pose, player.x, player.y, player.z)) {
-                if (canEnterPose(player, Pose.CROUCHING, player.x, player.y, player.z)) {
-                    pose = Pose.CROUCHING;
-                } else {
-                    pose = Pose.SWIMMING;
-                }
-            }
-
-            player.pose = pose;
-            player.boundingBox = getBoundingBoxForPose(player, player.pose, player.x, player.y, player.z);
         }
+
+        player.pose = pose;
+        player.boundingBox = getBoundingBoxForPose(player, player.pose, player.x, player.y, player.z);
     }
 
     // 1.13 and below
