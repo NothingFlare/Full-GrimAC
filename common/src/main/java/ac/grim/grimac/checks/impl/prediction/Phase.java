@@ -46,12 +46,18 @@ public class Phase extends Check implements PostPredictionListener {
             }
 
             boolean isRecentKnockback = Math.abs(currentTick - lastKnockbackTick) <= 25;
+            boolean isRecentRiptide = player.isRiptidePose || player.pose == Pose.SPIN_ATTACK
+                    || player.riptideSpinAttackTicks > 0
+                    || player.packetStateData.tryingToRiptide
+                    || Math.abs(currentTick - player.lastRiptideTick) <= 45
+                    || Math.abs(currentTick - player.lastCollidedWithRiptideTick) <= 30;
 
             boolean isFluidOrSliding = player.wasTouchingWater || player.wasWasTouchingWater
                     || player.isSwimming || player.wasSwimming
                     || player.isGliding || player.wasGliding
                     || player.pose == Pose.SWIMMING || player.pose == Pose.FALL_FLYING
-                    || isRecentKnockback;
+                    || player.pose == Pose.SPIN_ATTACK || player.isRiptidePose
+                    || isRecentKnockback || isRecentRiptide;
 
             double minPenetration = isFluidOrSliding ? 0.08 : 0.04;
 

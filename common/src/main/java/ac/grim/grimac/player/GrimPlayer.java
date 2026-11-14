@@ -137,6 +137,8 @@ public class GrimPlayer implements GrimUser {
     public double lastWasClimbing;
     public boolean canSwimHop;
     public int riptideSpinAttackTicks;
+    public int lastRiptideTick = -100;
+    public int lastCollidedWithRiptideTick = -100;
     public int powderSnowFrozenTicks;
     public boolean hasGravity = true;
     public final long joinTime = System.currentTimeMillis();
@@ -381,7 +383,7 @@ public class GrimPlayer implements GrimUser {
         // If the player has that client sided riptide thing and has colliding with an entity
         // This was determined in the previous tick but whatever just include the 2 ticks around it
         // for a bit of safety as I doubt people will try to bypass this, it would be a very useless cheat
-        if (riptideSpinAttackTicks >= 0 && Collections.max(uncertaintyHandler.riptideEntities) > 0) {
+        if ((riptideSpinAttackTicks >= 0 || isRiptidePose || pose == Pose.SPIN_ATTACK) && Collections.max(uncertaintyHandler.riptideEntities) > 0) {
             possibleMovements.add(new VectorData(clientVelocity.clone().multiply(-0.2), VectorData.VectorType.Trident));
         }
 

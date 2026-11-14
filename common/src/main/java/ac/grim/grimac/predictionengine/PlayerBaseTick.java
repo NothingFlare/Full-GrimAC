@@ -203,7 +203,7 @@ public final class PlayerBaseTick {
             pose = Pose.SLEEPING;
         } else if (player.isSwimming) {
             pose = Pose.SWIMMING;
-        } else if (player.isRiptidePose) {
+        } else if (player.isRiptidePose || player.riptideSpinAttackTicks > 0 || player.packetStateData.tryingToRiptide) {
             pose = Pose.SPIN_ATTACK;
         } else if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9) && player.getClientVersion().isOlderThan(ClientVersion.V_1_14) && player.isSneaking) {
             pose = Pose.NINE_CROUCHING;
@@ -234,7 +234,7 @@ public final class PlayerBaseTick {
             pose = Pose.FALL_FLYING;
         } else if (player.isInBed) {
             pose = Pose.SLEEPING;
-        } else if (!player.isSwimming && !player.isRiptidePose) {
+        } else if (!player.isSwimming && !player.isRiptidePose && player.riptideSpinAttackTicks <= 0 && !player.packetStateData.tryingToRiptide) {
             if (player.isSneaking && player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9)) {
                 pose = Pose.NINE_CROUCHING;
             } else {

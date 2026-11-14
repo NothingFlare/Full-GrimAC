@@ -1,5 +1,6 @@
 package ac.grim.grimac.predictionengine.movementtick;
 
+import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.predictionengine.PlayerBaseTick;
 import ac.grim.grimac.predictionengine.blockeffects.PotentSulfurGeyser;
@@ -11,6 +12,7 @@ import ac.grim.grimac.utils.data.packetentity.PacketEntity;
 import ac.grim.grimac.utils.data.packetentity.PacketEntityStrider;
 import ac.grim.grimac.utils.data.tags.SyncedTags;
 import ac.grim.grimac.utils.enums.FluidTag;
+import ac.grim.grimac.utils.enums.Pose;
 import ac.grim.grimac.utils.math.GrimMath;
 import ac.grim.grimac.utils.math.Vector3dm;
 import ac.grim.grimac.utils.nmsutil.BlockProperties;
@@ -63,12 +65,33 @@ public class MovementTicker {
             playerBox.encompass(GetBoundingBox.getBoundingBoxFromPosAndSize(player, player.x, player.y, player.z, 0.6f, 1.8f).expand(player.getMovementThreshold()));
             playerBox.expand(0.2);
 
+            int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+            if (player.isRiptidePose || player.pose == Pose.SPIN_ATTACK || player.riptideSpinAttackTicks > 0) {
+                player.lastRiptideTick = currentTick;
+            }
+
             final TeamHandler teamHandler = player.checkManager.get(TeamHandler.class);
             final EntityTeam playerTeam = teamHandler != null ? teamHandler.getPlayerTeam() : null;
             for (PacketEntity entity : player.compensatedEntities.entityMap.values()) {
                 // TODO actually handle entity collisions instead of this awfulness
                 SimpleCollisionBox entityBox = entity.getPossibleCollisionBoxes();
                 if (!playerBox.isCollided(entityBox)) continue;
+
+                if (entity.currentPose == Pose.SPIN_ATTACK || entity.transitionalPose == Pose.SPIN_ATTACK) {
+                    player.lastCollidedWithRiptideTick = currentTick;
+                }
+                if (entity.getUuid() != null) {
+                    GrimPlayer other = GrimAPI.INSTANCE.getPlayerDataManager().getPlayer(entity.getUuid());
+                    if (other != null) {
+                        boolean otherRiptiding = other.isRiptidePose || other.pose == Pose.SPIN_ATTACK
+                                || other.riptideSpinAttackTicks > 0
+                                || Math.abs(currentTick - other.lastRiptideTick) <= 45;
+                        if (otherRiptiding) {
+                            player.lastCollidedWithRiptideTick = currentTick;
+                            other.lastCollidedWithRiptideTick = currentTick;
+                        }
+                    }
+                }
 
                 possibleRiptideEntities++;
 

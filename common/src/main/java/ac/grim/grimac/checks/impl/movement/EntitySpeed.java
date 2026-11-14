@@ -12,6 +12,7 @@ import ac.grim.grimac.checks.CheckData;
 import ac.grim.grimac.checks.type.PostPredictionListener;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.update.PredictionComplete;
+import ac.grim.grimac.utils.enums.Pose;
 import com.github.retrooper.packetevents.protocol.player.GameMode;
 import com.github.retrooper.packetevents.protocol.world.states.WrappedBlockState;
 import com.github.retrooper.packetevents.protocol.world.states.type.StateType;
@@ -53,7 +54,9 @@ public class EntitySpeed extends Check implements PostPredictionListener {
 
         // Exempt external forces that legitimately boost velocity
         if (player.wasTouchingWater || player.wasWasTouchingWater
-                || player.riptideSpinAttackTicks > 0) {
+                || player.isRiptidePose || player.pose == Pose.SPIN_ATTACK
+                || player.riptideSpinAttackTicks > 0
+                || isRiptideMovement()) {
             buffer = Math.max(0.0, buffer - 0.5);
             return;
         }
@@ -139,6 +142,31 @@ public class EntitySpeed extends Check implements PostPredictionListener {
 
         // 3. Post-knockback inertial flight grace period (25 ticks = 1.25 seconds)
         if (Math.abs(currentTick - lastKnockbackTick) <= 25) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean isRiptideMovement() {
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+
+        // 1. Direct riptide active this tick
+        if (player.isRiptidePose || player.pose == Pose.SPIN_ATTACK
+                || player.riptideSpinAttackTicks > 0
+                || player.packetStateData.tryingToRiptide
+                || (player.predictedVelocity != null && player.predictedVelocity.isTrident())) {
+            player.lastRiptideTick = currentTick;
+            return true;
+        }
+
+        // 2. Ballistic flight after riptide launch (up to 45 ticks = 2.25 seconds)
+        if (Math.abs(currentTick - player.lastRiptideTick) <= 45) {
+            return true;
+        }
+
+        // 3. Target player recently collided with or pushed by a riptiding player (up to 30 ticks = 1.5 seconds)
+        if (Math.abs(currentTick - player.lastCollidedWithRiptideTick) <= 30) {
             return true;
         }
 

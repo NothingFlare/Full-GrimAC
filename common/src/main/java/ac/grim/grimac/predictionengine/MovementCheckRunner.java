@@ -1,5 +1,6 @@
 package ac.grim.grimac.predictionengine;
 
+import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.api.config.ConfigManager;
 import ac.grim.grimac.checks.GrimProcessor;
 import ac.grim.grimac.checks.impl.prediction.Phase;
@@ -374,6 +375,9 @@ public class MovementCheckRunner extends GrimProcessor {
 
             if (currentTime - player.packetStateData.lastRiptide < 450 || !isInWater) {
                 player.packetStateData.tryingToRiptide = false;
+            } else {
+                player.lastRiptideTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+                player.riptideSpinAttackTicks = 40;
             }
 
             player.packetStateData.lastRiptide = currentTime;
@@ -646,8 +650,10 @@ public class MovementCheckRunner extends GrimProcessor {
         }
 
         player.riptideSpinAttackTicks--;
-        if (player.predictedVelocity.isTrident())
-            player.riptideSpinAttackTicks = 20;
+        if (player.predictedVelocity.isTrident() || player.isRiptidePose || player.pose == Pose.SPIN_ATTACK) {
+            player.riptideSpinAttackTicks = Math.max(player.riptideSpinAttackTicks, 40);
+            player.lastRiptideTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+        }
 
         player.uncertaintyHandler.lastMovementWasZeroPointZeroThree = !player.inVehicle() && player.skippedTickInActualMovement;
         player.uncertaintyHandler.lastMovementWasUnknown003VectorReset = !player.inVehicle() && player.couldSkipTick

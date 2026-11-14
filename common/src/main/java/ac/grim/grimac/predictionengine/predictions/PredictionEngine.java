@@ -1,6 +1,8 @@
 package ac.grim.grimac.predictionengine.predictions;
 
+import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.player.GrimPlayer;
+import ac.grim.grimac.utils.enums.Pose;
 import ac.grim.grimac.predictionengine.SneakingEstimator;
 import ac.grim.grimac.predictionengine.movementtick.MovementTickerPlayer;
 import ac.grim.grimac.predictionengine.predictions.input.Input;
@@ -538,7 +540,14 @@ public class PredictionEngine {
         //
         // Be somewhat careful as there is an antikb (for horizontal) that relies on this lenience
         // Cap entity collision uncertainty to prevent EntitySpeed / PushBoost cheats
-        double collisionUncertainty = Math.min(0.06, avgColliding * 0.035);
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+        boolean isRiptideActive = player.isRiptidePose || player.pose == Pose.SPIN_ATTACK
+                || player.riptideSpinAttackTicks > 0
+                || Math.abs(currentTick - player.lastRiptideTick) <= 45
+                || Math.abs(currentTick - player.lastCollidedWithRiptideTick) <= 30;
+
+        double maxCollisionLenience = isRiptideActive ? 0.16 : 0.06;
+        double collisionUncertainty = Math.min(maxCollisionLenience, avgColliding * (isRiptideActive ? 0.08 : 0.035));
         Vector3dm uncertainty = new Vector3dm(collisionUncertainty, additionVertical, collisionUncertainty);
 
         Vector3dm min = new Vector3dm(player.uncertaintyHandler.xNegativeUncertainty - additionHorizontal, -bonusY + player.uncertaintyHandler.yNegativeUncertainty, player.uncertaintyHandler.zNegativeUncertainty - additionHorizontal);
