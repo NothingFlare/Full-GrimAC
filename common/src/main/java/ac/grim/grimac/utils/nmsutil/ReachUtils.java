@@ -170,15 +170,18 @@ public class ReachUtils {
         return vec.getX() > self.minX && vec.getX() < self.maxX && (vec.getY() > self.minY && vec.getY() < self.maxY && vec.getZ() > self.minZ && vec.getZ() < self.maxZ);
     }
 
-    public static double getMinReachToBox(@NotNull GrimPlayer player, @NotNull SimpleCollisionBox targetBox) {
+    public static double getMinReachToBox(double x, double y, double z, double[] possibleEyeHeights, @NotNull SimpleCollisionBox targetBox) {
         double lowest = Double.MAX_VALUE;
 
-        final double[] possibleEyeHeights = player.getPossibleEyeHeights();
         for (double eyes : possibleEyeHeights) {
-            Vector3dm closestPoint = VectorUtils.cutBoxToVector(player.x, player.y + eyes, player.z, targetBox);
-            lowest = Math.min(lowest, closestPoint.distance(player.x, player.y + eyes, player.z));
+            Vector3dm closestPoint = VectorUtils.cutBoxToVector(x, y + eyes, z, targetBox);
+            lowest = Math.min(lowest, closestPoint.distance(x, y + eyes, z));
         }
 
         return lowest;
+    }
+
+    public static double getMinReachToBox(@NotNull GrimPlayer player, @NotNull SimpleCollisionBox targetBox) {
+        return getMinReachToBox(player.x, player.y, player.z, player.getPossibleEyeHeights(), targetBox);
     }
 }
