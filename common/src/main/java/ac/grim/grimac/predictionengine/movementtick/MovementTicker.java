@@ -226,7 +226,7 @@ public class MovementTicker {
             }
         }
 
-        if (player.onGround) {
+        if (player.onGround || player.wasTouchingWater || player.wasTouchingLava) {
             player.fallDistance = 0;
         } else if (collide.getY() < 0) {
             player.fallDistance -= collide.getY();

@@ -15,12 +15,15 @@ import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.predictionengine.GhostBlockDetector;
 import ac.grim.grimac.utils.anticheat.update.PredictionComplete;
 import ac.grim.grimac.utils.collisions.datatypes.SimpleCollisionBox;
+import ac.grim.grimac.utils.latency.CompensatedWorld;
 import ac.grim.grimac.utils.nmsutil.Collisions;
 import ac.grim.grimac.utils.nmsutil.GetBoundingBox;
+import ac.grim.grimac.utils.nmsutil.Materials;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.player.GameMode;
 import com.github.retrooper.packetevents.protocol.potion.PotionTypes;
 import com.github.retrooper.packetevents.protocol.world.states.defaulttags.BlockTags;
+import com.github.retrooper.packetevents.protocol.world.states.type.StateType;
 import com.github.retrooper.packetevents.protocol.world.states.type.StateTypes;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerFlying;
 
@@ -43,6 +46,7 @@ public class NoFall extends Check implements PacketReceiveListener, PostPredicti
     private double fakeGroundBuffer = 0.0;
     private double noGroundBuffer = 0.0;
     private boolean flaggedDuringCurrentFall = false;
+    private int lastWaterTick = 0;
 
     public NoFall(GrimPlayer player) {
         super(player);
@@ -53,7 +57,39 @@ public class NoFall extends Check implements PacketReceiveListener, PostPredicti
         if (player.gamemode == GameMode.SPECTATOR || player.gamemode == GameMode.CREATIVE) return true;
         if (player.inVehicle() || player.isGliding || player.wasGliding) return true;
         if (player.isFlying || player.wasFlying || player.canFly) return true;
-        if (player.wasTouchingWater || player.wasWasTouchingWater || player.wasTouchingLava) return true;
+
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+        boolean inOrNearWater = player.wasTouchingWater || player.wasWasTouchingWater
+                || player.wasEyeInWater || player.isSwimming || player.isInWaterOrRain()
+                || player.wasTouchingLava || (Math.abs(currentTick - lastWaterTick) < 40);
+
+        if (player.wasTouchingWater || player.wasWasTouchingWater || player.isSwimming) {
+            lastWaterTick = currentTick;
+            trackedFallDistance = 0.0;
+            player.fallDistance = 0.0;
+            flaggedDuringCurrentFall = false;
+            return true;
+        }
+
+        if (inOrNearWater) {
+            trackedFallDistance = 0.0;
+            player.fallDistance = 0.0;
+            flaggedDuringCurrentFall = false;
+            return true;
+        }
+
+        SimpleCollisionBox checkBB = player.boundingBox.copy().expand(0.5);
+        if (Collisions.hasMaterial(player, checkBB, (block, bx, by, bz) ->
+                Materials.isWater(CompensatedWorld.blockVersion, block)
+                        || block.getType() == StateTypes.LAVA
+                        || block.getType() == StateTypes.BUBBLE_COLUMN)) {
+            lastWaterTick = currentTick;
+            trackedFallDistance = 0.0;
+            player.fallDistance = 0.0;
+            flaggedDuringCurrentFall = false;
+            return true;
+        }
+
         if (player.isClimbing || player.uncertaintyHandler.wasAffectedByStuckSpeed()) return true;
         if (player.packetStateData.lastPacketWasTeleport) return true;
         if (player.getSetbackTeleportUtil().insideUnloadedChunk() || player.getSetbackTeleportUtil().blockOffsets) return true;
@@ -68,20 +104,18 @@ public class NoFall extends Check implements PacketReceiveListener, PostPredicti
     public boolean isLandingOnFallDamageMitigatingBlock(double x, double y, double z) {
         SimpleCollisionBox feetBB = GetBoundingBox.getBoundingBoxFromPosAndSize(player, x, y, z, 0.6f, 0.001f);
         feetBB.expand(Math.max(0.1, player.getMovementThreshold())).offset(0.0, -0.2, 0.0);
-        final boolean[] mitigating = new boolean[1];
-        Collisions.forEachCollisionBox(player, feetBB, (block, bx, by, bz) -> {
-            if (block.getType() == StateTypes.SLIME_BLOCK
-                    || block.getType() == StateTypes.HONEY_BLOCK
-                    || BlockTags.BEDS.contains(block.getType())
-                    || block.getType() == StateTypes.HAY_BLOCK
-                    || block.getType() == StateTypes.COBWEB
-                    || block.getType() == StateTypes.POWDER_SNOW
-                    || block.getType() == StateTypes.WATER
-                    || block.getType() == StateTypes.BUBBLE_COLUMN) {
-                mitigating[0] = true;
-            }
+        return Collisions.hasMaterial(player, feetBB, (block, bx, by, bz) -> {
+            StateType type = block.getType();
+            return Materials.isWater(CompensatedWorld.blockVersion, block)
+                    || type == StateTypes.LAVA
+                    || type == StateTypes.BUBBLE_COLUMN
+                    || type == StateTypes.SLIME_BLOCK
+                    || type == StateTypes.HONEY_BLOCK
+                    || BlockTags.BEDS.contains(type)
+                    || type == StateTypes.HAY_BLOCK
+                    || type == StateTypes.COBWEB
+                    || type == StateTypes.POWDER_SNOW;
         });
-        return mitigating[0];
     }
 
     public boolean isNearGround(double x, double y, double z) {
@@ -228,7 +262,10 @@ public class NoFall extends Check implements PacketReceiveListener, PostPredicti
 
     private void enforceFallDamage(double fallDist) {
         if (player.platformPlayer == null) return;
-        if (player.uncertaintyHandler.influencedByBouncyBlock()
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+        if (player.wasTouchingWater || player.wasWasTouchingWater || player.isSwimming
+                || player.isInWaterOrRain() || (Math.abs(currentTick - lastWaterTick) < 40)
+                || player.uncertaintyHandler.influencedByBouncyBlock()
                 || player.uncertaintyHandler.influencedBySlime()
                 || player.uncertaintyHandler.isSteppingOnHoney
                 || player.uncertaintyHandler.wasAffectedByStuckSpeed()

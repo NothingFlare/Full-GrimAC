@@ -174,21 +174,27 @@ public class Reach extends Check implements PacketReceiveListener {
             }
         }
 
-        // Real-time reach verification and cancellation
-        CheckResult result = checkReach(entity, player.x, player.y, player.z,
-                player.yaw, player.pitch, player.lastYaw, player.lastPitch,
-                hasRange, maxReach, hitboxMargin, attackRangeMovement, true);
+        SimpleCollisionBox targetBox = getTargetBox(entity);
+        double maxReachVal = applyReachModifiers(targetBox, hasRange, maxReach, hitboxMargin, true);
+        double minBoxDist = ReachUtils.getMinReachToBox(player, targetBox);
 
-        if (result.type() == ResultType.REACH) {
+        // Calculate maximum potential forward movement for this tick to prevent false cancels during sprint PvP
+        double maxTickMovement = Math.max(0.35, player.clientVelocity.length() + 0.05);
+
+        // If even with maximum forward sprint the entity is unreachable, or if player already failed reach
+        boolean impossibleHit = minBoxDist > (maxReachVal + maxTickMovement);
+        boolean bufferedViolation = cancelBuffer > 0 && minBoxDist > maxReachVal;
+
+        if (impossibleHit || bufferedViolation) {
             cancelBuffer = 1;
             flag(
-                    V.write(verbose()).f64(result.minDistance()).uint(Math.max(0, entity.getType().getId(PacketEvents.getAPI().getServerManager().getVersion().toClientVersion()))),
+                    V.write(verbose()).f64(minBoxDist).uint(Math.max(0, entity.getType().getId(PacketEvents.getAPI().getServerManager().getVersion().toClientVersion()))),
                     () -> {
                         String added = ", type=" + entity.getType().getName().getKey();
                         if (entity instanceof PacketEntitySizeable sizeable) {
                             added += ", size=" + sizeable.size;
                         }
-                        return result.verbose() + added;
+                        return String.format("%.5f blocks (minBox=%.2f)", minBoxDist, minBoxDist) + added;
                     });
             KillAuraBot bot = player.checkManager.get(KillAuraBot.class);
             if (bot != null) {
@@ -224,9 +230,10 @@ public class Reach extends Check implements PacketReceiveListener {
                     interactionData.x, interactionData.y, interactionData.z,
                     interactionData.yaw, interactionData.pitch, interactionData.lastYaw, interactionData.lastPitch,
                     interactionData.hasAttackRange, interactionData.maxReach, interactionData.hitboxMargin,
-                    interactionData.attackRangeMovement, false);
+                    interactionData.attackRangeMovement);
             switch (result.type()) {
                 case REACH -> {
+                    cancelBuffer = 1;
                     flag(
                             V.write(verbose()).f64(result.minDistance()).uint(Math.max(0, reachEntity.getType().getId(PacketEvents.getAPI().getServerManager().getVersion().toClientVersion()))),
                             () -> {
@@ -242,6 +249,7 @@ public class Reach extends Check implements PacketReceiveListener {
                     }
                 }
                 case HITBOX -> {
+                    cancelBuffer = 1;
                     String added = "type=" + reachEntity.getType().getName().getKey();
                     if (reachEntity instanceof PacketEntitySizeable sizeable) {
                         added += ", size=" + sizeable.size;
@@ -251,6 +259,9 @@ public class Reach extends Check implements PacketReceiveListener {
                     if (bot != null) {
                         bot.addSuspicion(2);
                     }
+                }
+                case NONE -> {
+                    cancelBuffer = Math.max(0, cancelBuffer - 0.25);
                 }
             }
         }
@@ -262,7 +273,7 @@ public class Reach extends Check implements PacketReceiveListener {
     private CheckResult checkReach(PacketEntity reachEntity, double x, double y, double z,
                                    float yaw, float pitch, float lastYaw, float lastPitch,
                                    boolean hasAttackRange, float itemMaxReach, float itemHitboxMargin,
-                                   Vector3dm attackRangeMovement, boolean isPrediction) {
+                                   Vector3dm attackRangeMovement) {
         SimpleCollisionBox targetBox = getTargetBox(reachEntity);
 
         double movementAllowance = attackRangeMovement == null ? 0 : getAttackRangeMovementAllowance(attackRangeMovement);
@@ -270,65 +281,66 @@ public class Reach extends Check implements PacketReceiveListener {
         double minDistance = Double.MAX_VALUE;
 
         // https://bugs.mojang.com/browse/MC-67665
-        List<Vector3dm> possibleLookDirs = new ArrayList<>(Collections.singletonList(ReachUtils.getLook(player, yaw, pitch)));
+        List<Vector3dm> possibleLookDirs = new ArrayList<>();
+        possibleLookDirs.add(ReachUtils.getLook(player, player.yaw, player.pitch));
+        possibleLookDirs.add(ReachUtils.getLook(player, yaw, pitch));
 
-        // If we are a tick behind, we don't know their next look so don't bother doing this
-        if (!isPrediction) {
-            // 1.7 players do not have any of these issues! They are always on the latest look vector
-            if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_8)) {
-                possibleLookDirs.add(ReachUtils.getLook(player, lastYaw, pitch));
+        if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_8)) {
+            possibleLookDirs.add(ReachUtils.getLook(player, player.lastYaw, player.pitch));
+            possibleLookDirs.add(ReachUtils.getLook(player, lastYaw, pitch));
 
-                // 1.9+ players could be a tick behind because we don't get skipped ticks
-                if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9)) {
-                    possibleLookDirs.add(ReachUtils.getLook(player, lastYaw, lastPitch));
-                }
-            }
-        } else {
-            if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_8)) {
-                possibleLookDirs.add(ReachUtils.getLook(player, lastYaw, pitch));
+            if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9)) {
+                possibleLookDirs.add(ReachUtils.getLook(player, player.lastYaw, player.lastPitch));
+                possibleLookDirs.add(ReachUtils.getLook(player, lastYaw, lastPitch));
             }
         }
 
         // +3 would be 3 + 3 = 6, which is the pre-1.20.5 behaviour, preventing "Missed Hitbox"
         final double distance = maxReach + 3;
-
         final double[] possibleEyeHeights = player.getPossibleEyeHeights();
-        for (Vector3dm lookVec : possibleLookDirs) {
-            Vector3dm scaledLook = lookVec.clone().multiply(distance);
 
-            for (double eye : possibleEyeHeights) {
-                final Vector3d eyePos = new Vector3d(x, y + eye, z);
-                Vector3d endReachPos = eyePos.add(scaledLook.getX(), scaledLook.getY(), scaledLook.getZ());
+        double[][] origins = new double[][] {
+                { x, y, z },
+                { player.x, player.y, player.z }
+        };
 
-                Vector3d intercept = ReachUtils.calculateIntercept(targetBox, eyePos, endReachPos).first();
+        for (double[] origin : origins) {
+            for (Vector3dm lookVec : possibleLookDirs) {
+                Vector3dm scaledLook = lookVec.clone().multiply(distance);
 
-                if (ReachUtils.isVecInside(targetBox, eyePos)) {
-                    minDistance = 0;
-                    break;
-                }
+                for (double eye : possibleEyeHeights) {
+                    final Vector3d eyePos = new Vector3d(origin[0], origin[1] + eye, origin[2]);
+                    Vector3d endReachPos = eyePos.add(scaledLook.getX(), scaledLook.getY(), scaledLook.getZ());
 
-                if (intercept != null) {
-                    minDistance = Math.min(eyePos.distance(intercept), minDistance);
+                    Vector3d intercept = ReachUtils.calculateIntercept(targetBox, eyePos, endReachPos).first();
+
+                    if (ReachUtils.isVecInside(targetBox, eyePos)) {
+                        minDistance = 0;
+                        break;
+                    }
+
+                    if (intercept != null) {
+                        minDistance = Math.min(eyePos.distance(intercept), minDistance);
+                    }
                 }
             }
         }
 
         // if the entity is not exempt and the entity is alive
         if ((!blacklisted.contains(reachEntity.getType()) && reachEntity.isLivingEntity) || reachEntity.getType() == EntityTypes.END_CRYSTAL) {
-            double minBoxDist = ReachUtils.getMinReachToBox(x, y, z, possibleEyeHeights, targetBox);
+            double minBoxDist = Math.min(
+                    ReachUtils.getMinReachToBox(x, y, z, possibleEyeHeights, targetBox),
+                    ReachUtils.getMinReachToBox(player.x, player.y, player.z, possibleEyeHeights, targetBox)
+            );
 
             if (minDistance == Double.MAX_VALUE) {
-                cancelBuffer = 1;
                 if (minBoxDist > maxReach) {
                     return new CheckResult(ResultType.REACH, minBoxDist, movementAllowance, attackRangeMovement != null);
                 }
                 return new CheckResult(ResultType.HITBOX, minBoxDist, 0, false);
             } else if (minDistance > maxReach || minBoxDist > maxReach) {
-                cancelBuffer = 1;
                 double reportedDistance = minDistance != Double.MAX_VALUE ? minDistance : minBoxDist;
                 return new CheckResult(ResultType.REACH, reportedDistance, movementAllowance, attackRangeMovement != null);
-            } else {
-                cancelBuffer = Math.max(0, cancelBuffer - 0.25);
             }
         }
 
@@ -339,22 +351,7 @@ public class Reach extends Check implements PacketReceiveListener {
         if (reachEntity.getType() == EntityTypes.END_CRYSTAL) { // Hardcode end crystal box
             return new SimpleCollisionBox(reachEntity.trackedServerPosition.getPos().subtract(1, 0, 1), reachEntity.trackedServerPosition.getPos().add(1, 2, 1));
         }
-        SimpleCollisionBox possibleBoxes = reachEntity.getPossibleCollisionBoxes();
-        Vector3d serverPos = reachEntity.trackedServerPosition.getPos();
-        SimpleCollisionBox serverBox = GetBoundingBox.getPacketEntityBoundingBox(player, serverPos.x, serverPos.y, serverPos.z, reachEntity);
-
-        double maxExtra = 1.0;
-        double minX = Math.max(possibleBoxes.minX, serverBox.minX - maxExtra);
-        double maxX = Math.min(possibleBoxes.maxX, serverBox.maxX + maxExtra);
-        double minY = Math.max(possibleBoxes.minY, serverBox.minY - maxExtra);
-        double maxY = Math.min(possibleBoxes.maxY, serverBox.maxY + maxExtra);
-        double minZ = Math.max(possibleBoxes.minZ, serverBox.minZ - maxExtra);
-        double maxZ = Math.min(possibleBoxes.maxZ, serverBox.maxZ + maxExtra);
-
-        if (minX <= maxX && minY <= maxY && minZ <= maxZ) {
-            return new SimpleCollisionBox(minX, minY, minZ, maxX, maxY, maxZ);
-        }
-        return possibleBoxes;
+        return reachEntity.getPossibleCollisionBoxes();
     }
 
     private double getAttackRangeMovementAllowance(Vector3dm attackRangeMovement) {

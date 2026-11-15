@@ -278,7 +278,7 @@ tasks {
     }
 
     shadowJar {
-        archiveFileName.set("FullGrimAC-1.9.jar")
+        archiveFileName.set("FullGrimAC-1.9.1.jar")
         exclude("META-INF/services/javax.annotation.processing.Processor")
 
         if (!BuildConfig.shadePE) {
