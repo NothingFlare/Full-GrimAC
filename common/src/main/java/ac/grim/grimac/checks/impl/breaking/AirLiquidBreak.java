@@ -39,17 +39,15 @@ public class AirLiquidBreak extends Check implements BlockBreakListener {
 
         final StateType block = blockBreak.block.getType();
 
-        // Fixes false from breaking kelp underwater
+        // Fixes false from breaking kelp, seagrass, or waterlogged blocks underwater, as well as instabreak blocks
         // The client sends two start digging packets to the server both in the same tick. AirLiquidBreak gets called twice, doesn't false the first time, but falses the second
-        // One ends up breaking the kelp, the other ends up doing nothing besides falsing this check because we think they're trying to mine water
-        // I am explicitly making this patch as narrow and specific as possible to potentially discover other blocks that exhibit similar behaviour
+        // One ends up breaking the block, the other ends up doing nothing besides falsing this check because we think they're trying to mine water or air
         int newTick = GrimAPI.INSTANCE.getTickManager().currentTick;
         if (lastTick == newTick
                 && lastBreakLoc.equals(blockBreak.position)
                 && !didLastFlag
-                && lastBlockType.getHardness() == 0.0F
-                && lastBlockType.getBlastResistance() == 0.0F
-                && block == StateTypes.WATER
+                && !lastBlockType.isAir()
+                && (block == StateTypes.WATER || block.isAir())
         ) return;
         lastTick = newTick;
         lastBreakLoc = blockBreak.position;

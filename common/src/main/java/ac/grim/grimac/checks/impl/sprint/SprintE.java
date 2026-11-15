@@ -30,7 +30,7 @@ public class SprintE extends Check implements PacketReceiveListener, PostPredict
 
     @Override
     public void onPredictionComplete(final PredictionComplete predictionComplete) {
-        if (!predictionComplete.isChecked()) return;
+        if (!predictionComplete.isChecked() || player.isGliding || player.riptideSpinAttackTicks > 0) return;
 
         if (wasHardHorizontalCollision && !startedSprintingThisTick && !player.uncertaintyHandler.isNearGlitchyBlock
                 && !player.inVehicle() && !player.uncertaintyHandler.lastVehicleSwitch.hasOccurredSince(0)

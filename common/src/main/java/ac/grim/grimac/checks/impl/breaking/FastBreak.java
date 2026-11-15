@@ -44,6 +44,8 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
     double maximumBlockDamage = 0;
     // The last time a finish digging packet was sent, to enforce delay after non-instabreak
     long lastFinishBreak = 0;
+    // Whether the previously broken block was non-instabreak (damage < 1.0)
+    boolean lastBreakWasNonInstabreak = false;
     // The time the player started to break the block
     long startBreak = 0;
 
@@ -67,8 +69,8 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
             maximumBlockDamage = BlockBreakSpeed.getBlockDamage(player, block);
 
             // In vanilla survival, breaking a non-instabreak block enforces a 5-tick (250ms) delay before starting the next block.
-            // Instant-break blocks (damage >= 1.0) have no delay.
-            if (maximumBlockDamage < 1.0 && lastFinishBreak > 0) {
+            // Instant-break blocks have no delay. The delay applies ONLY if the previously broken block was non-instabreak.
+            if (lastBreakWasNonInstabreak && lastFinishBreak > 0) {
                 double breakDelay = (double) (System.currentTimeMillis() - lastFinishBreak);
 
                 // Allow for network jitter: vanilla client waits 250ms, allow >= 175ms without penalty
@@ -95,6 +97,7 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
         if (blockBreak.action == DiggingAction.CANCELLED_DIGGING) {
             targetBlockPosition = null;
             maximumBlockDamage = 0;
+            lastBreakWasNonInstabreak = false;
         }
 
         if (blockBreak.action == DiggingAction.FINISHED_DIGGING && targetBlockPosition != null) {
@@ -112,6 +115,7 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
                 int type = VerboseCodecs.block(blockBreak.block.getType(), player.getClientVersion());
                 if (flag(V.write(verbose()).bool(false).ulong(0).f64(diff).f64(diff).sint(type)) && shouldModifyPackets()) {
                     blockBreak.cancel();
+                    lastBreakWasNonInstabreak = (maximumBlockDamage < 1.0);
                     lastFinishBreak = startBreak = System.currentTimeMillis();
                     targetBlockPosition = null;
                     maximumBlockDamage = 0;
@@ -136,6 +140,7 @@ public class FastBreak extends Check implements BlockBreakListener, PreViaPacket
                 }
             }
 
+            lastBreakWasNonInstabreak = (maximumBlockDamage < 1.0);
             lastFinishBreak = startBreak = System.currentTimeMillis();
             targetBlockPosition = null;
             maximumBlockDamage = 0;

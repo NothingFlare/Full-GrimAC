@@ -237,8 +237,10 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
                         return;
                     }
                 }
-            } else if (diff > 25) {
-                zeroDelayCount = Math.max(0, zeroDelayCount - 2);
+            } else if (diff > 15) {
+                zeroDelayCount = 0;
+            } else {
+                zeroDelayCount = Math.max(0, zeroDelayCount - 1);
             }
         }
 
@@ -279,9 +281,11 @@ public class CombatAutoClicker extends Check implements PacketReceiveListener, B
             long interval = now - lastClickTime;
 
             if (interval >= 25 && interval <= 500) {
-                // Filter out Minecraft tick quantization (50ms, 100ms) and Windows OS 15.6ms timer steps
+                // Filter out Minecraft tick quantization (50ms, 100ms), 60Hz/120Hz frame steps (16ms, 33ms), and Windows OS 15.6ms timer steps
                 boolean isTickQuantized = (Math.abs(interval - 50) <= 4
                         || Math.abs(interval - 100) <= 4
+                        || Math.abs(interval - 16) <= 2
+                        || Math.abs(interval - 33) <= 2
                         || Math.abs(interval - 15) <= 2
                         || Math.abs(interval - 31) <= 2
                         || Math.abs(interval - 47) <= 2);

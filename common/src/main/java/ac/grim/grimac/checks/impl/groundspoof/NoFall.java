@@ -20,6 +20,8 @@ import ac.grim.grimac.utils.nmsutil.GetBoundingBox;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.player.GameMode;
 import com.github.retrooper.packetevents.protocol.potion.PotionTypes;
+import com.github.retrooper.packetevents.protocol.world.states.defaulttags.BlockTags;
+import com.github.retrooper.packetevents.protocol.world.states.type.StateTypes;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerFlying;
 
 import java.lang.reflect.Method;
@@ -58,7 +60,28 @@ public class NoFall extends Check implements PacketReceiveListener, PostPredicti
         if (player.compensatedEntities.getPotionLevelForPlayer(PotionTypes.SLOW_FALLING).isPresent()
                 || player.compensatedEntities.getPotionLevelForPlayer(PotionTypes.LEVITATION).isPresent()) return true;
         if (player.riptideSpinAttackTicks > 0) return true;
+        if (player.uncertaintyHandler.influencedByBouncyBlock() || player.uncertaintyHandler.influencedBySlime()) return true;
+        if (player.uncertaintyHandler.isSteppingOnHoney || player.uncertaintyHandler.isSteppingNearBubbleColumn || player.uncertaintyHandler.isSteppingNearScaffolding) return true;
         return false;
+    }
+
+    public boolean isLandingOnFallDamageMitigatingBlock(double x, double y, double z) {
+        SimpleCollisionBox feetBB = GetBoundingBox.getBoundingBoxFromPosAndSize(player, x, y, z, 0.6f, 0.001f);
+        feetBB.expand(Math.max(0.1, player.getMovementThreshold())).offset(0.0, -0.2, 0.0);
+        final boolean[] mitigating = new boolean[1];
+        Collisions.forEachCollisionBox(player, feetBB, (block, bx, by, bz) -> {
+            if (block.getType() == StateTypes.SLIME_BLOCK
+                    || block.getType() == StateTypes.HONEY_BLOCK
+                    || BlockTags.BEDS.contains(block.getType())
+                    || block.getType() == StateTypes.HAY_BLOCK
+                    || block.getType() == StateTypes.COBWEB
+                    || block.getType() == StateTypes.POWDER_SNOW
+                    || block.getType() == StateTypes.WATER
+                    || block.getType() == StateTypes.BUBBLE_COLUMN) {
+                mitigating[0] = true;
+            }
+        });
+        return mitigating[0];
     }
 
     public boolean isNearGround(double x, double y, double z) {
@@ -135,6 +158,18 @@ public class NoFall extends Check implements PacketReceiveListener, PostPredicti
         // 2. NoGround NoFall: Client lands on solid ground after a fall but claims onGround=false
         // in order to evade server fall damage
         if (!claimedOnGround && physicallyNearGround) {
+            // Mitigate false positives on bouncy blocks, slime, honey, beds, cobwebs, powder snow, and water
+            if (isLandingOnFallDamageMitigatingBlock(targetX, targetY, targetZ)
+                    || player.uncertaintyHandler.influencedByBouncyBlock()
+                    || player.uncertaintyHandler.influencedBySlime()
+                    || player.uncertaintyHandler.isSteppingOnHoney
+                    || player.uncertaintyHandler.wasAffectedByStuckSpeed()
+                    || player.uncertaintyHandler.isSteppingNearBubbleColumn) {
+                trackedFallDistance = 0.0;
+                flaggedDuringCurrentFall = false;
+                return;
+            }
+
             double currentFall = Math.max(player.fallDistance, trackedFallDistance);
             double verticalDelta = Math.abs(targetY - player.lastY);
 
@@ -178,7 +213,12 @@ public class NoFall extends Check implements PacketReceiveListener, PostPredicti
 
         // Player legitimately landed on ground
         if (player.onGround) {
-            if (flaggedDuringCurrentFall && trackedFallDistance > 3.2) {
+            if (flaggedDuringCurrentFall && trackedFallDistance > 3.2
+                    && !player.uncertaintyHandler.influencedByBouncyBlock()
+                    && !player.uncertaintyHandler.influencedBySlime()
+                    && !player.uncertaintyHandler.isSteppingOnHoney
+                    && !player.uncertaintyHandler.wasAffectedByStuckSpeed()
+                    && !isLandingOnFallDamageMitigatingBlock(player.x, player.y, player.z)) {
                 enforceFallDamage(trackedFallDistance);
             }
             trackedFallDistance = 0.0;
@@ -188,6 +228,13 @@ public class NoFall extends Check implements PacketReceiveListener, PostPredicti
 
     private void enforceFallDamage(double fallDist) {
         if (player.platformPlayer == null) return;
+        if (player.uncertaintyHandler.influencedByBouncyBlock()
+                || player.uncertaintyHandler.influencedBySlime()
+                || player.uncertaintyHandler.isSteppingOnHoney
+                || player.uncertaintyHandler.wasAffectedByStuckSpeed()
+                || isLandingOnFallDamageMitigatingBlock(player.x, player.y, player.z)) {
+            return;
+        }
 
         final OptionalInt jumpBoost = player.compensatedEntities.getPotionLevelForPlayer(PotionTypes.JUMP_BOOST);
         double effectiveDist = fallDist - (jumpBoost.orElse(0));

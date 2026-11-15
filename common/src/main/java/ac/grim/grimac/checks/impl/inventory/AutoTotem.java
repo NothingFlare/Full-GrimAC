@@ -68,8 +68,9 @@ public class AutoTotem extends Check implements PacketReceiveListener {
 
     private void handleHeldItemChange(PacketReceiveEvent event) {
         long now = System.currentTimeMillis();
-        // If player swapped offhand within 45ms, and now immediately switches hotbar slot back
-        if (player.packetStateData.lastOffhandSwapTime > 0) {
+        // If player swapped offhand with a totem within 45ms, and now immediately switches hotbar slot back
+        ItemStack offHand = player.inventory.getOffHand();
+        if (player.packetStateData.lastOffhandSwapTime > 0 && isTotem(offHand)) {
             long swapDiff = now - player.packetStateData.lastOffhandSwapTime;
             if (swapDiff <= 45 && swapDiff >= 0) {
                 if (flag("exploit=silent_swap_return, diff=" + swapDiff + "ms") && shouldModifyPackets()) {
@@ -83,7 +84,6 @@ public class AutoTotem extends Check implements PacketReceiveListener {
 
     private void handleOffhandSwap(PacketReceiveEvent event) {
         long now = System.currentTimeMillis();
-        player.packetStateData.lastOffhandSwapTime = now;
 
         ItemStack mainHand = player.inventory.getHeldItem();
         ItemStack offHand = player.inventory.getOffHand();
@@ -95,6 +95,8 @@ public class AutoTotem extends Check implements PacketReceiveListener {
         if (!mainIsTotem && !offIsTotem) {
             return;
         }
+
+        player.packetStateData.lastOffhandSwapTime = now;
 
         // Sub-tick multi-swap (two totem swaps in <= 25ms)
         if (lastSwapPacketTime > 0) {
@@ -197,7 +199,9 @@ public class AutoTotem extends Check implements PacketReceiveListener {
         }
 
         // 2. Any offhand action (SWAP button 40, or click into offhand slot 45):
-        if (isOffhandSwap || isOffhandSlot) {
+        // Only inspect if a totem is actually involved in the offhand action!
+        boolean totemInvolvedInOffhand = (isOffhandSwap && slotIsTotem) || (isOffhandSlot && (slotIsTotem || carriedIsTotem));
+        if (totemInvolvedInOffhand) {
             // A. Check reaction timing if a totem popped on the player
             if (checkTotemSwapTiming(event, now)) {
                 return;

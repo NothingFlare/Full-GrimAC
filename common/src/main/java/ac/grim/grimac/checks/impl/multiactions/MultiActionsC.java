@@ -1,5 +1,6 @@
 package ac.grim.grimac.checks.impl.multiactions;
 
+import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.api.storage.verbose.Verbose;
 import ac.grim.grimac.checks.Check;
 import ac.grim.grimac.checks.CheckData;
@@ -58,13 +59,22 @@ public class MultiActionsC extends Check implements PacketReceiveListener {
         boolean sprinting = isVerboseSprinting(player);
         boolean sneaking = isVerboseSneaking(player);
 
-        // 1. External forces (knockback, explosions, water currents, vehicles)
+        // 1. External forces (knockback, explosions, water currents, vehicles, riptide, pistons)
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+        boolean recentExternalForces = (Math.abs(currentTick - player.lastRiptideTick) <= 45)
+                || (Math.abs(currentTick - player.lastCollidedWithRiptideTick) <= 30)
+                || player.checkManager.getKnockbackHandler().hasActiveOrPendingKnockback()
+                || player.checkManager.getExplosionHandler().hasActiveOrPendingExplosion();
+
         boolean isPushed = player.wasTouchingWater
                 || player.wasWasTouchingWater
                 || player.firstBreadKB != null
                 || player.likelyKB != null
                 || player.firstBreadExplosion != null
-                || player.likelyExplosions != null;
+                || player.likelyExplosions != null
+                || recentExternalForces
+                || player.uncertaintyHandler.pistonX.stream().anyMatch(d -> d != 0.0)
+                || player.uncertaintyHandler.pistonZ.stream().anyMatch(d -> d != 0.0);
         boolean isRiding = player.inVehicle();
 
         if (isPushed || isRiding || player.isGliding || player.isSwimming) {
