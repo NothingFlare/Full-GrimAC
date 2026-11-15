@@ -40,6 +40,14 @@ public class OffsetHandler extends Check implements PostPredictionListener {
 
         if (COMPLETE_CHANNEL.fire(player, this, offset)) return;
 
+        // Exempt minor bubble column elevator vertical simulation discrepancies
+        if ((player.pointThreeEstimator.isNearBubbleColumn() || player.uncertaintyHandler.isSteppingNearBubbleColumn)
+                && offset <= 0.085) {
+            advantageGained *= setbackDecayMultiplier;
+            removeOffsetLenience();
+            return;
+        }
+
         if ((offset >= threshold || offset >= immediateSetbackThreshold)) {
             advantageGained += offset;
             giveOffsetLenienceNextTick(offset);

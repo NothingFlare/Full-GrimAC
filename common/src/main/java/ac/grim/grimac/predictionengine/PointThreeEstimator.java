@@ -107,6 +107,7 @@ public class PointThreeEstimator {
 
     private boolean isNearHorizontalFlowingLiquid = false; // We can't calculate the direction, only a toggle
     private boolean isNearVerticalFlowingLiquid = false; // We can't calculate exact values, once again a toggle
+    @Getter
     private boolean isNearBubbleColumn = false; // We can't calculate exact values once again
 
     private int maxPositiveLevitation = Integer.MIN_VALUE; // Positive potion effects [0, 128]
@@ -404,11 +405,17 @@ public class PointThreeEstimator {
     public double getVerticalFluidPushingUncertainty(VectorData vector) {
         // We don't know if the player was in the water because of 0.03
         // End of tick and start of tick can double this fluid motion, so we need to double it
-        return (isNearBubbleColumn || isNearVerticalFlowingLiquid) && vector.isZeroPointZeroThree() ? 0.014 * 2 : 0;
+        if (isNearBubbleColumn || isNearVerticalFlowingLiquid) {
+            return vector.isZeroPointZeroThree() ? 0.014 * 2 : 0.028;
+        }
+        return 0;
     }
 
     public double getVerticalBubbleUncertainty(VectorData vectorData) {
-        return isNearBubbleColumn && vectorData.isZeroPointZeroThree() ? 0.35 : 0;
+        if (!isNearBubbleColumn && !player.uncertaintyHandler.isSteppingNearBubbleColumn) {
+            return 0;
+        }
+        return vectorData.isZeroPointZeroThree() ? 0.35 : 0.15;
     }
 
     public double getAdditionalVerticalUncertainty(VectorData vector) {

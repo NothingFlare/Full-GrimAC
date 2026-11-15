@@ -8,8 +8,10 @@ import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.update.BlockPlace;
 import ac.grim.grimac.utils.change.BlockModification;
 import ac.grim.grimac.utils.nmsutil.Materials;
+import com.github.retrooper.packetevents.protocol.item.type.ItemTypes;
 import com.github.retrooper.packetevents.protocol.player.GameMode;
 import com.github.retrooper.packetevents.protocol.world.states.type.StateType;
+import com.github.retrooper.packetevents.protocol.world.states.type.StateTypes;
 import com.github.retrooper.packetevents.util.Vector3i;
 
 @CheckData(name = "AirLiquidPlace", stableKey = "grim.scaffolding.air_liquid_place", description = "Placed a block against an invalid support")
@@ -57,6 +59,10 @@ public class AirLiquidPlace extends BlockPlaceCheck implements BlockPlaceListene
     @Override
     public void onBlockPlace(final BlockPlace place) {
         if (player.gamemode == GameMode.CREATIVE) return;
+        if (place.material == StateTypes.LILY_PAD || place.material == StateTypes.FROGSPAWN
+                || (place.itemStack != null && (place.itemStack.is(ItemTypes.LILY_PAD) || place.itemStack.is(ItemTypes.FROGSPAWN)))) {
+            return;
+        }
 
         Vector3i blockPos = place.position;
         StateType placeAgainst = player.compensatedWorld.getBlockType(blockPos.getX(), blockPos.getY(), blockPos.getZ());

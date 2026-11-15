@@ -304,6 +304,10 @@ public class UncertaintyHandler {
         if (player.uncertaintyHandler.influencedByBouncyBlock() && (!player.isPointThree() || player.inVehicle())) {
             offset -= 0.03;
         }
+
+        if (player.pointThreeEstimator.isNearBubbleColumn() || player.uncertaintyHandler.isSteppingNearBubbleColumn) {
+            offset -= 0.08;
+        }
         // This is the end of that section.
 
         // I can't figure out how the client exactly tracks boost time

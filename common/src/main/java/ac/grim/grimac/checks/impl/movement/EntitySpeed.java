@@ -205,6 +205,7 @@ public class EntitySpeed extends Check implements PostPredictionListener {
 
         // 4. Bubble columns, shulker boxes/entities, and step movements
         if (player.uncertaintyHandler.isSteppingNearBubbleColumn
+                || player.pointThreeEstimator.isNearBubbleColumn()
                 || player.uncertaintyHandler.isSteppingNearShulker
                 || player.uncertaintyHandler.isNearGlitchyBlock
                 || player.uncertaintyHandler.isOrWasNearGlitchyBlock

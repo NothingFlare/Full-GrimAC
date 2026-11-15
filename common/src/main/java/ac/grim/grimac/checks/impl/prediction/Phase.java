@@ -57,6 +57,8 @@ public class Phase extends Check implements PostPredictionListener {
                     || player.isGliding || player.wasGliding
                     || player.pose == Pose.SWIMMING || player.pose == Pose.FALL_FLYING
                     || player.pose == Pose.SPIN_ATTACK || player.isRiptidePose
+                    || player.uncertaintyHandler.isSteppingNearBubbleColumn
+                    || player.pointThreeEstimator.isNearBubbleColumn()
                     || isRecentKnockback || isRecentRiptide;
 
             double minPenetration = isFluidOrSliding ? 0.08 : 0.04;
