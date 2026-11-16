@@ -7,7 +7,7 @@
 [![Minecraft Version](https://img.shields.io/badge/Minecraft-1.8--1.21.11+-2b2b2b.svg?style=flat-square)](https://papermc.io)
 [![Java Version](https://img.shields.io/badge/Java-17+-2b2b2b.svg?style=flat-square)](https://www.oracle.com/java/)
 [![Folia](https://img.shields.io/badge/Folia-Supported-2b2b2b.svg?style=flat-square)](https://papermc.io/software/folia)
-[![Release](https://img.shields.io/badge/Release-1.9.1-2b2b2b.svg?style=flat-square)]()
+[![Release](https://img.shields.io/badge/Release-2.0-2b2b2b.svg?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-GPL--3.0-2b2b2b.svg?style=flat-square)](LICENSE)
 
 [Overview](#overview) • [Fork Notice](#fork-notice) • [Key Features](#key-features) • [Compatibility](#compatibility) • [Commands and Permissions](#commands-and-permissions) • [Configuration](#configuration) • [Localization](#localization) • [Installation](#installation) • [Compiling from Source](#compiling-from-source) • [License & Attribution](#license--attribution)
@@ -102,6 +102,7 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
 
 | Command | Description | Default Permission |
 | :--- | :--- | :--- |
+| `/grim gui` | Opens the graphical settings menu for checks and server optimizations | `grim.gui` |
 | `/grim help` | Displays the help menu and available commands | `grim.help` |
 | `/grim alerts` | Toggles cheater violation alerts in chat | `grim.alerts` |
 | `/grim verbose` | Toggles detailed real-time debug violation output | `grim.verbose` |
@@ -116,6 +117,7 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
 
 | Node | Description | Default Assignment |
 | :--- | :--- | :--- |
+| `grim.gui` | Allows opening the in-game anticheat configuration GUI | `op` |
 | `grim.alerts` | Grants access to receive cheat violation notices | `op` |
 | `grim.alerts.enable-on-join` | Automatically enables cheat violation alerts upon joining | `op` |
 | `grim.perf` | Allows viewing performance protection status and notices | `op` |
@@ -204,7 +206,7 @@ cd Full-GrimAC
 
 The resulting compiled binary will be located in:
 ```text
-bukkit/build/libs/FullGrimAC-1.9.1.jar
+bukkit/build/libs/FullGrimAC-2.0.jar
 ```
 
 ---

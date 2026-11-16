@@ -129,6 +129,13 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
     @Override
     public void onEnable() {
         GrimAPI.INSTANCE.start();
+
+        // Initialize GUI Manager and Optimization Listeners
+        ac.grim.grimac.platform.bukkit.gui.GrimGuiManager guiManager = new ac.grim.grimac.platform.bukkit.gui.GrimGuiManager();
+        GrimAPI.INSTANCE.setGuiHandler(guiManager);
+        Bukkit.getPluginManager().registerEvents(guiManager, this);
+        Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.RedstoneOptimizer(), this);
+        Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.TNTOptimizer(), this);
     }
 
     @Override

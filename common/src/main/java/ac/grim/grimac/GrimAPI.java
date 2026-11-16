@@ -62,6 +62,7 @@ public final class GrimAPI {
     private PlatformLoader loader;
     private InitManager initManager;
     private boolean initialized = false;
+    @lombok.Setter private ac.grim.grimac.platform.api.gui.PlatformGuiHandler guiHandler;
 
     private GrimAPI() {
         this.configManager = new BaseConfigManager();

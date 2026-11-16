@@ -138,7 +138,7 @@ public class Check extends GrimProcessor implements AbstractCheck {
     }
 
     private boolean recordFlag(@NotNull Supplier<String> verbose) {
-        if (player.disableGrim || (experimental && !player.isExperimentalChecks()) || exemptPermission)
+        if (!isEnabled || player.disableGrim || (experimental && !player.isExperimentalChecks()) || exemptPermission)
             return false; // Avoid calling event if disabled
 
         if (FLAG_CHANNEL.fire(player, this, verbose)) return false;
@@ -154,7 +154,7 @@ public class Check extends GrimProcessor implements AbstractCheck {
         Supplier<String> rendered = verbose.rendered();
         byte[] verboseData = verbose.data();
 
-        if (player.disableGrim || (experimental && !player.isExperimentalChecks()) || exemptPermission)
+        if (!isEnabled || player.disableGrim || (experimental && !player.isExperimentalChecks()) || exemptPermission)
             return false; // Avoid calling event if disabled
 
         if (FLAG_CHANNEL.fire(player, this, rendered)) return false;
@@ -232,6 +232,13 @@ public class Check extends GrimProcessor implements AbstractCheck {
 
             if (setbackVL == -1) setbackVL = Double.MAX_VALUE;
         }
+
+        if (CheckToggleRegistry.isCheckDisabled(checkName)
+                || CheckToggleRegistry.isCheckDisabled(configName)
+                || CheckToggleRegistry.isCheckDisabled(alternativeName)) {
+            this.isEnabled = false;
+        }
+
         super.reload(configuration);
     }
 

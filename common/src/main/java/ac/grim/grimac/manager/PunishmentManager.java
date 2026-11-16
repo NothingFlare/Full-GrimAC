@@ -115,8 +115,12 @@ public class PunishmentManager implements ConfigReloadable {
             List<AbstractCheck> unmapped = new ArrayList<>();
             for (AbstractCheck check : player.getChecks()) {
                 if (!check.isEnabled()) {
-                    check.setEnabled(true);
-                    unmapped.add(check);
+                    if (!ac.grim.grimac.checks.CheckToggleRegistry.isCheckDisabled(check.getCheckName())
+                            && !ac.grim.grimac.checks.CheckToggleRegistry.isCheckDisabled(check.getConfigName())
+                            && !ac.grim.grimac.checks.CheckToggleRegistry.isCheckDisabled(check.getAlternativeName())) {
+                        check.setEnabled(true);
+                        unmapped.add(check);
+                    }
                 }
             }
             if (!unmapped.isEmpty()) {

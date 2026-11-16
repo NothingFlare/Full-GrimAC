@@ -137,7 +137,7 @@ dependencies {
 
 bukkit {
     name = "FullGrimAC"
-    version = "1.9"
+    version = "2.0"
     author = "GrimAC Team & NothingFlare"
     main = "ac.grim.grimac.platform.bukkit.GrimACBukkitLoaderPlugin"
     website = "https://grim.ac/"
@@ -170,6 +170,11 @@ bukkit {
     )
 
     permissions {
+        register("grim.gui") {
+            description = "Open the GrimAC configuration GUI"
+            default = Permission.Default.OP
+        }
+
         register("grim.alerts") {
             description = "Receive alerts for violations"
             default = Permission.Default.OP
@@ -278,7 +283,7 @@ tasks {
     }
 
     shadowJar {
-        archiveFileName.set("FullGrimAC-1.9.1.jar")
+        archiveFileName.set("FullGrimAC-2.0.jar")
         exclude("META-INF/services/javax.annotation.processing.Processor")
 
         if (!BuildConfig.shadePE) {

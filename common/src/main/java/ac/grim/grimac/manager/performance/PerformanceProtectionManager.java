@@ -121,6 +121,17 @@ public final class PerformanceProtectionManager {
         return false;
     }
 
+    public static boolean isEnabled() {
+        return enabled;
+    }
+
+    public static void setEnabled(boolean value) {
+        enabled = value;
+        if (!value) {
+            lowTpsActive = false;
+        }
+    }
+
     public static boolean isLowTpsActive() {
         return enabled && lowTpsActive;
     }
