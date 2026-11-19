@@ -137,10 +137,9 @@ public final class VerifiedPlayerController {
    * Closes the connection if instantiated
    */
   public void close() {
+    updateService.shutdownNow();
     // The connection source will always be null if the database type is NONE.
     if (connectionSource != null) {
-      // Shut down the update service before letting it re-use the connection.
-      updateService.shutdown();
       try {
         connectionSource.close();
       } catch (Exception exception) {

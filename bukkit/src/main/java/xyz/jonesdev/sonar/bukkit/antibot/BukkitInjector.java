@@ -169,8 +169,8 @@ public class BukkitInjector {
       }
     }
 
-    // Throw an error if we cannot find the server version
-    throw new IllegalStateException("Could not find server version " + bukkitVersion);
+    // Fall back to latest known version instead of crashing with IllegalStateException
+    return BukkitServerVersion.REVERSED_VALUES[0];
   }
 
   private boolean isObfuscated() {

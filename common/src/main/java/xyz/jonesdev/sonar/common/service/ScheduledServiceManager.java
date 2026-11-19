@@ -31,11 +31,11 @@ import java.util.concurrent.TimeUnit;
 
 @UtilityClass
 public final class ScheduledServiceManager {
-  private final ScheduledExecutorService VERBOSE = createScheduledExecutor("sonar-verbose-thread");
-  private final ScheduledExecutorService DB_CLEANUP = createScheduledExecutor("sonar-db-cleanup-thread");
-  private final ScheduledExecutorService LOGIN_QUEUE = createScheduledExecutor("sonar-queue-thread");
-  private final ScheduledExecutorService STATISTICS = createScheduledExecutor("sonar-statistics-thread");
-  private final ScheduledExecutorService UPDATE_NOTIFIER = createScheduledExecutor("sonar-update-notifier");
+  private ScheduledExecutorService VERBOSE;
+  private ScheduledExecutorService DB_CLEANUP;
+  private ScheduledExecutorService LOGIN_QUEUE;
+  private ScheduledExecutorService STATISTICS;
+  private ScheduledExecutorService UPDATE_NOTIFIER;
 
   private @NotNull ScheduledExecutorService createScheduledExecutor(final String threadName) {
     return Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -46,7 +46,15 @@ public final class ScheduledServiceManager {
     });
   }
 
-  public void start() {
+  public synchronized void start() {
+    stop();
+
+    VERBOSE = createScheduledExecutor("sonar-verbose-thread");
+    DB_CLEANUP = createScheduledExecutor("sonar-db-cleanup-thread");
+    LOGIN_QUEUE = createScheduledExecutor("sonar-queue-thread");
+    STATISTICS = createScheduledExecutor("sonar-statistics-thread");
+    UPDATE_NOTIFIER = createScheduledExecutor("sonar-update-notifier");
+
     if (Sonar.get0().getVerifiedPlayerController().getCachedDatabaseType() != SonarConfiguration.Database.Type.NONE) {
       DB_CLEANUP.scheduleAtFixedRate(() -> {
         try {
@@ -62,7 +70,9 @@ public final class ScheduledServiceManager {
     VERBOSE.scheduleAtFixedRate(() -> {
       // Make sure to clean up the cached statistics since we don't want to display wrong values
       GlobalSonarStatistics.cleanUpCaches();
-      Sonar.get0().getAntiBot().getBlacklist().cleanUp();
+      if (Sonar.get0().getAntiBot().getBlacklist() != null) {
+        Sonar.get0().getAntiBot().getBlacklist().cleanUp();
+      }
       // Update the attack tracker
       Sonar.get0().getAttackTracker().checkIfUnderAttack();
       // Publish the action bar notifications
@@ -82,11 +92,11 @@ public final class ScheduledServiceManager {
     }
   }
 
-  public void stop() {
-    DB_CLEANUP.shutdown();
-    VERBOSE.shutdown();
-    LOGIN_QUEUE.shutdown();
-    STATISTICS.shutdown();
-    UPDATE_NOTIFIER.shutdown();
+  public synchronized void stop() {
+    if (DB_CLEANUP != null) { DB_CLEANUP.shutdownNow(); DB_CLEANUP = null; }
+    if (VERBOSE != null) { VERBOSE.shutdownNow(); VERBOSE = null; }
+    if (LOGIN_QUEUE != null) { LOGIN_QUEUE.shutdownNow(); LOGIN_QUEUE = null; }
+    if (STATISTICS != null) { STATISTICS.shutdownNow(); STATISTICS = null; }
+    if (UPDATE_NOTIFIER != null) { UPDATE_NOTIFIER.shutdownNow(); UPDATE_NOTIFIER = null; }
   }
 }

@@ -336,6 +336,9 @@ tasks {
 
         manifest {
             attributes["paperweight-mappings-namespace"] = "mojang"
+            attributes["Implementation-Version"] = project.version.toString()
+            attributes["Git-Branch"] = "main"
+            attributes["Git-Commit"] = "integrated"
         }
     }
 }

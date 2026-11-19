@@ -127,6 +127,12 @@ public final class SonarBukkit extends SonarBootstrap<JavaPlugin> {
   @Override
   public void disable() {
     BukkitInjector.uninject();
+    if (bukkitAudiences != null) {
+      try {
+        bukkitAudiences.close();
+      } catch (Throwable ignored) {
+      }
+    }
     // Make sure to properly stop the metrics
     if (metrics != null) {
       metrics.shutdown();

@@ -217,6 +217,13 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
 
         eventBus.get(ac.grim.grimac.api.event.events.GrimReloadEvent.class).onReload(plugin, (success) -> {
             Bukkit.getPluginManager().callEvent(new ac.grim.grimac.api.events.GrimReloadEvent(success));
+            if (sonarBootstrap != null && success) {
+                try {
+                    sonarBootstrap.reload();
+                } catch (Throwable t) {
+                    getLogger().warning("Error reloading Sonar AntiBot: " + t.getMessage());
+                }
+            }
         });
 
         eventBus.subscribe(plugin, ac.grim.grimac.api.event.events.FlagEvent.class, event -> {

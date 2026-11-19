@@ -32,14 +32,23 @@ public final class SonarVersion {
   private final String version, formatted, gitBranch, gitCommit;
 
   SonarVersion() {
-    // No need to null-check since we'll always just throw an exception if
-    // we can't find the version information in this file.
-    final Manifest manifest = getManifest();
+    String implVersion = null;
+    String branch = null;
+    String commit = null;
+    try {
+      final Manifest manifest = getManifest();
+      if (manifest != null && manifest.getMainAttributes() != null) {
+        implVersion = manifest.getMainAttributes().getValue("Implementation-Version");
+        branch = manifest.getMainAttributes().getValue("Git-Branch");
+        commit = manifest.getMainAttributes().getValue("Git-Commit");
+      }
+    } catch (Throwable ignored) {
+    }
 
-    this.version = manifest.getMainAttributes().getValue("Implementation-Version");
-    this.gitBranch = manifest.getMainAttributes().getValue("Git-Branch");
-    this.gitCommit = manifest.getMainAttributes().getValue("Git-Commit");
-    this.formatted = version + " (" + gitCommit + ")";
+    this.version = implVersion != null ? implVersion : "2.0.0";
+    this.gitBranch = branch != null ? branch : "main";
+    this.gitCommit = commit != null ? commit : "integrated";
+    this.formatted = this.version + " (" + this.gitCommit + ")";
   }
 
   // https://github.com/PaperMC/Velocity/pull/1336/

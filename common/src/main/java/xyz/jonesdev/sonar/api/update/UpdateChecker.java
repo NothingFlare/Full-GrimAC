@@ -95,18 +95,20 @@ public class UpdateChecker {
     return urlConnection;
   }
 
-  private int convertVersion(final @NotNull String version) throws NumberFormatException, IllegalStateException {
-    final String[] convertedParts = version.split("\\.");
-    // Validate the length of the converted parts
-    if (convertedParts.length != 3) {
-      throw new IllegalStateException("Converted version length mismatch");
+  private int convertVersion(final String version) {
+    if (version == null || version.isEmpty()) {
+      return 0;
     }
-    // Major updates are more important than minor updates,
-    // and minor updates are more important than patches.
-    final int convertedMajor = Integer.parseInt(convertedParts[0]) * 100000; // multiply by weight
-    final int convertedMinor = Integer.parseInt(convertedParts[1]) * 10000; // multiply by weight
-    final int patch = Integer.parseInt(convertedParts[2]);
-    return convertedMajor + convertedMinor + patch; // sum the converted version parts
+    try {
+      final String clean = version.startsWith("v") || version.startsWith("V") ? version.substring(1) : version;
+      final String[] convertedParts = clean.split("[.-]");
+      final int major = convertedParts.length > 0 ? Integer.parseInt(convertedParts[0].replaceAll("\\D+", "")) : 0;
+      final int minor = convertedParts.length > 1 ? Integer.parseInt(convertedParts[1].replaceAll("\\D+", "")) : 0;
+      final int patch = convertedParts.length > 2 ? Integer.parseInt(convertedParts[2].replaceAll("\\D+", "")) : 0;
+      return major * 100000 + minor * 10000 + patch;
+    } catch (Throwable ignored) {
+      return 0;
+    }
   }
 
   @Getter
