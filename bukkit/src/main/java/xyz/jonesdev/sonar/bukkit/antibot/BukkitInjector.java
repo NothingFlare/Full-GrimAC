@@ -264,7 +264,16 @@ public class BukkitInjector {
 
               @Override
               protected void initChannel(final @NotNull Channel channel) {
-                channel.close();
+                if (INITIALIZE_LISTENER.isDone()) {
+                  return;
+                }
+                try {
+                  final Method initChannelMethod = ChannelInitializer.class.getDeclaredMethod("initChannel", Channel.class);
+                  initChannelMethod.setAccessible(true);
+                  initChannelMethod.invoke(originalInitializer, channel);
+                } catch (Throwable t) {
+                  channel.close();
+                }
               }
             });
           }

@@ -14,6 +14,14 @@ tasks.named<ShadowJar>("shadowJar") {
         // slf4j-jdk14's provider is reached only through ServiceLoader, so minimize()
         // drops it and the shaded slf4j goes back to printing that it found no providers.
         exclude(dependency("org.slf4j:slf4j-jdk14:.*"))
+
+        // Caffeine creates cache classes dynamically via reflection (e.g. SSW, PSW)
+        exclude(dependency("com.github.ben-manes.caffeine:caffeine:.*"))
+        // ORMLite database drivers and entity mappers use reflection
+        exclude(dependency("com.j256.ormlite:.*"))
+        // Sonar dependencies
+        exclude(dependency("com.github.Carleslc.Simple-YAML:.*"))
+        exclude(dependency("com.jhlabs:.*"))
     }
     archiveFileName = "${rootProject.name}-${project.name}-${rootProject.version}.jar"
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
