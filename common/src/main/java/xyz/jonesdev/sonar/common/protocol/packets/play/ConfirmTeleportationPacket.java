@@ -1,0 +1,61 @@
+/*
+ * Copyright (C) 2025 Sonar Contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package xyz.jonesdev.sonar.common.protocol.packets.play;
+
+import io.netty.buffer.ByteBuf;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
+import xyz.jonesdev.sonar.api.antibot.protocol.ProtocolVersion;
+import xyz.jonesdev.sonar.common.protocol.SonarPacket;
+import xyz.jonesdev.sonar.common.util.ProtocolUtil;
+
+@Getter
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
+public final class ConfirmTeleportationPacket implements SonarPacket {
+  private int teleportId;
+  private double x;
+  private double y;
+  private double z;
+  private float yaw;
+  private float pitch;
+
+  public ConfirmTeleportationPacket(final int teleportId) {
+    this.teleportId = teleportId;
+  }
+
+  @Override
+  public void encode(final ByteBuf byteBuf, final ProtocolVersion protocolVersion) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void decode(final ByteBuf byteBuf, final ProtocolVersion protocolVersion) throws Exception {
+    teleportId = ProtocolUtil.readVarInt(byteBuf);
+    if (protocolVersion.greaterThanOrEquals(ProtocolVersion.MINECRAFT_26_3)) {
+      x = byteBuf.readDouble();
+      y = byteBuf.readDouble();
+      z = byteBuf.readDouble();
+      yaw = byteBuf.readFloat();
+      pitch = byteBuf.readFloat();
+    }
+  }
+}

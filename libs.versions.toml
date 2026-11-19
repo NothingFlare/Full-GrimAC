@@ -18,6 +18,11 @@ viaversion = "5.9.0"
 luckperms = "5.5"
 
 # --- General Java Utilities ---
+caffeine = "3.1.8"
+ormlite = "6.1"
+simpleyaml = "1.8.4"
+imagefilters = "2.0.235-1"
+bstats = "3.0.2"
 fastutil = "8.5.15"
 hikaricp = "7.0.2"
 slf4j = "2.0.17"
@@ -36,6 +41,8 @@ spotless = "8.9.0"
 # --- Core Frameworks: Adventure (Text) & Cloud (Commands) ---
 adventure-platform-bukkit = { group = "net.kyori", name = "adventure-platform-bukkit", version.ref = "adventure-platform-bukkit" }
 adventure-text-minimessage = { group = "net.kyori", name = "adventure-text-minimessage", version.ref = "adventure" }
+adventure-nbt = { group = "net.kyori", name = "adventure-nbt", version.ref = "adventure" }
+adventure-serializer-gson = { group = "net.kyori", name = "adventure-text-serializer-gson", version.ref = "adventure" }
 cloud-core = { group = "org.incendo", name = "cloud-core", version.ref = "cloud" }
 cloud-paper = { group = "org.incendo", name = "cloud-paper", version.ref = "cloud-paper" }
 cloud-processors-requirements = { group = "org.incendo", name = "cloud-processors-requirements", version.ref = "cloud-processors-requirements" }
@@ -59,6 +66,11 @@ viaversion = { group = "com.viaversion", name = "viaversion", version.ref = "via
 viabackwards = { group = "com.viaversion", name = "viabackwards", version.ref = "viaversion" }
 
 # --- General Java Utilities ---
+caffeine = { group = "com.github.ben-manes.caffeine", name = "caffeine", version.ref = "caffeine" }
+ormlite = { group = "com.j256.ormlite", name = "ormlite-jdbc", version.ref = "ormlite" }
+simpleyaml = { group = "com.github.Carleslc.Simple-YAML", name = "Simple-Yaml", version.ref = "simpleyaml" }
+imagefilters = { group = "com.jhlabs", name = "filters", version.ref = "imagefilters" }
+bstats-bukkit = { group = "org.bstats", name = "bstats-bukkit", version.ref = "bstats" }
 fastutil = { group = "it.unimi.dsi", name = "fastutil", version.ref = "fastutil"}
 hikaricp = { group = "com.zaxxer", name = "HikariCP", version.ref = "hikaricp" }
 slf4j-jdk14 = { group = "org.slf4j", name = "slf4j-jdk14", version.ref = "slf4j" }

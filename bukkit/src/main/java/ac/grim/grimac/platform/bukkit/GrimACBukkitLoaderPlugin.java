@@ -69,6 +69,7 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
     private final LazyHolder<ItemResetHandler> itemResetHandler = LazyHolder.simple(BukkitItemResetHandler::new);
     private final LazyHolder<CommandService> commandService = LazyHolder.simple(this::createCommandService);
     private final CloudPlatformCommandArguments commandArguments = new BukkitCloudPlatformCommandArguments();
+    private xyz.jonesdev.sonar.bukkit.SonarBukkit sonarBootstrap;
 
     @Getter private final PlatformPlayerFactory platformPlayerFactory = new BukkitPlatformPlayerFactory();
     @Getter private final PlatformPluginManager pluginManager = new BukkitPlatformPluginManager();
@@ -110,6 +111,15 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
     public void onLoad() {
         LOADER = this;
         GrimAPI.INSTANCE.load(this, this.getBukkitInitTasks());
+
+        // Inject early if late-bind is disabled for Sonar
+        try {
+            if (!xyz.jonesdev.sonar.bukkit.antibot.BukkitInjector.isLateBindEnabled()) {
+                xyz.jonesdev.sonar.bukkit.antibot.BukkitInjector.inject();
+            }
+        } catch (Throwable t) {
+            getLogger().warning("Could not early inject Sonar Netty pipeline: " + t.getMessage());
+        }
     }
 
     private Initable[] getBukkitInitTasks() {
@@ -136,10 +146,26 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
         Bukkit.getPluginManager().registerEvents(guiManager, this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.RedstoneOptimizer(), this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.TNTOptimizer(), this);
+
+        // Initialize Sonar AntiBot System
+        try {
+            sonarBootstrap = new xyz.jonesdev.sonar.bukkit.SonarBukkit(this);
+            sonarBootstrap.initialize();
+        } catch (Throwable t) {
+            getLogger().severe("Could not initialize Sonar AntiBot: " + t.getMessage());
+            t.printStackTrace();
+        }
     }
 
     @Override
     public void onDisable() {
+        if (sonarBootstrap != null) {
+            try {
+                sonarBootstrap.shutdown();
+            } catch (Throwable t) {
+                getLogger().warning("Error shutting down Sonar AntiBot: " + t.getMessage());
+            }
+        }
         GrimAPI.INSTANCE.stop();
     }
 

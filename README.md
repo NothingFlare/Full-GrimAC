@@ -74,6 +74,17 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
   - Groups online players into latency cohorts (low, medium, high ping).
   - Dynamically compares click consistency, aim patterns, and transaction timing across players in similar network conditions to uncover subtle anomalies.
 
+- **Integrated Native Sonar AntiBot System**
+  - Directly ports the complete, authentic Netty pipeline architecture of **Sonar** into Full GrimAC.
+  - Zero server tick overhead: new incoming connections are intercepted and verified at the Netty socket layer before ever touching the Minecraft server world or entities.
+  - Multi-stage virtual limbo verification:
+    - `GravityHandler`: Mathematical verification of fall motion ($\Delta Y$), terminal velocity, and block collision on an invisible platform.
+    - `ProtocolHandler`: Vanilla protocol ping/transaction echo, client hotbar slot switching (`SetHeldItem`), and arm animation validation.
+    - `VehicleHandler`: Vehicle interaction and packet sequence validation (boats/minecarts).
+    - `CaptchaHandler`: In-game map CAPTCHA with procedural noise, ripple, and curve filters.
+  - Verified player database caching (None, H2, MySQL, MariaDB, PostgreSQL) with automatic `TransferPacket` transfer on 1.20.5+.
+  - All Sonar configuration and language files are stored in `plugins/FullGrimAC/sonar/`.
+
 - **Adaptive Performance Protection**
   - Automatically monitors server TPS in real time.
   - When server TPS drops below a configurable threshold (default: `< 15.0`), the anticheat enters an emergency throttling mode:
@@ -102,6 +113,7 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
 
 | Command | Description | Default Permission |
 | :--- | :--- | :--- |
+| `/sonar [stats\|blacklist\|verified\|verbose\|dump\|reload\|notify]` | Full Sonar AntiBot management, statistics, and configuration | `sonar.command` |
 | `/grim gui` | Opens the graphical settings menu for checks and server optimizations | `grim.gui` |
 | `/grim help` | Displays the help menu and available commands | `grim.help` |
 | `/grim alerts` | Toggles cheater violation alerts in chat | `grim.alerts` |
@@ -117,6 +129,7 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
 
 | Node | Description | Default Assignment |
 | :--- | :--- | :--- |
+| `sonar.command` | Grants access to manage Sonar AntiBot system and view statistics | `op` |
 | `grim.gui` | Allows opening the in-game anticheat configuration GUI | `op` |
 | `grim.alerts` | Grants access to receive cheat violation notices | `op` |
 | `grim.alerts.enable-on-join` | Automatically enables cheat violation alerts upon joining | `op` |

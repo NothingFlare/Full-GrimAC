@@ -49,6 +49,9 @@ repositories {
         includeGroup("github.scarsz")
     }
 
+    exclusive("https://jitpack.io") {
+        includeGroup("com.github.Carleslc.Simple-YAML")
+    }
     mavenCentral()
 }
 
@@ -131,6 +134,15 @@ dependencies {
     implementation(libs.adventure.platform.bukkit)
     implementation(libs.grim.bukkit.internal)
 
+    // Sonar dependencies
+    implementation(libs.bstats.bukkit)
+    implementation(libs.caffeine)
+    implementation(libs.simpleyaml)
+    implementation(libs.ormlite)
+    implementation(libs.imagefilters)
+    implementation(libs.adventure.nbt)
+    implementation(libs.adventure.serializer.gson)
+
     implementation(project(":common"))
     shadow(project(":common"))
 }
@@ -169,7 +181,20 @@ bukkit {
         "jedis",
     )
 
+    commands {
+        register("sonar") {
+            description = "Sonar AntiBot management"
+            permission = "sonar.command"
+            aliases = listOf("grimantibot", "santicheat")
+        }
+    }
+
     permissions {
+        register("sonar.command") {
+            description = "Manage Sonar AntiBot"
+            default = Permission.Default.OP
+        }
+
         register("grim.gui") {
             description = "Open the GrimAC configuration GUI"
             default = Permission.Default.OP
@@ -285,6 +310,13 @@ tasks {
     shadowJar {
         archiveFileName.set("FullGrimAC-2.0.jar")
         exclude("META-INF/services/javax.annotation.processing.Processor")
+
+        relocate("org.bstats", "xyz.jonesdev.sonar.libs.bstats")
+        relocate("com.alessiodp.libby", "xyz.jonesdev.sonar.libs.libby")
+        relocate("com.simpleyaml", "xyz.jonesdev.sonar.libs.yaml")
+        relocate("com.j256.ormlite", "xyz.jonesdev.sonar.libs.ormlite")
+        relocate("com.github.benmanes.caffeine", "xyz.jonesdev.sonar.libs.caffeine")
+        relocate("com.jhlabs", "xyz.jonesdev.sonar.libs.jhlabs")
 
         if (!BuildConfig.shadePE) {
             inputs.files(provider { liteSharedProviderFiles() }).withPropertyName("liteSharedProviders")

@@ -47,11 +47,21 @@ repositories {
         includeModule("org.geysermc", "geyser-parent")
     }
 
+    exclusive("https://jitpack.io") {
+        includeGroup("com.github.Carleslc.Simple-YAML")
+    }
     mavenCentral()
 }
 
 
 dependencies {
+    // Sonar dependencies
+    api(libs.adventure.nbt)
+    api(libs.adventure.serializer.gson)
+    api(libs.caffeine)
+    api(libs.ormlite)
+    api(libs.simpleyaml)
+    api(libs.imagefilters)
     // compileOnly, not api: each platform bundles PE via its own JiJ/shade path,
     // so api() here would nest packetevents-api a second time (~4.2MB) in the jars.
     compileOnly(libs.packetevents.api)
