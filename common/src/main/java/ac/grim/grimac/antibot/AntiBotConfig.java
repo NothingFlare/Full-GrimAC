@@ -58,6 +58,15 @@ public class AntiBotConfig {
     private int clientBrandMaxLength = 64;
     private Set<Integer> blacklistedProtocols = new HashSet<>();
 
+    // Dedicated Verification World & Sonar Checks
+    private boolean dedicatedWorldEnabled = true;
+    private String dedicatedWorldName = "grim_verification";
+    private double dedicatedWorldSpawnOffset = 4.0;
+    private boolean checkGravity = true;
+    private boolean checkHitboxCollision = true;
+    private boolean checkMovementLock = true;
+    private boolean hidePlayersDuringVerification = true;
+
     // Alts detection
     private boolean altsEnabled = true;
     private int maxAltsPerIp = 5;
@@ -145,6 +154,21 @@ public class AntiBotConfig {
                 clientBrandMaxLength = getInt(brand, "max-length", clientBrandMaxLength);
             }
 
+            Map<String, Object> dedicatedWorld = getSection(verification, "dedicated-world");
+            if (dedicatedWorld != null) {
+                dedicatedWorldEnabled = getBoolean(dedicatedWorld, "enabled", dedicatedWorldEnabled);
+                dedicatedWorldName = getString(dedicatedWorld, "world-name", dedicatedWorldName);
+                dedicatedWorldSpawnOffset = getDouble(dedicatedWorld, "spawn-height-offset", dedicatedWorldSpawnOffset);
+            }
+
+            Map<String, Object> checks = getSection(verification, "checks");
+            if (checks != null) {
+                checkGravity = getBoolean(checks, "gravity", checkGravity);
+                checkHitboxCollision = getBoolean(checks, "hitbox-collision", checkHitboxCollision);
+                checkMovementLock = getBoolean(checks, "movement-lock", checkMovementLock);
+                hidePlayersDuringVerification = getBoolean(checks, "hide-players", hidePlayersDuringVerification);
+            }
+
             Object protocols = verification.get("blacklisted-protocols");
             if (protocols instanceof List<?> list) {
                 blacklistedProtocols.clear();
@@ -214,6 +238,15 @@ public class AntiBotConfig {
                     "  kick-message: \"&e[GrimAC AntiBot]\\n&aПроверка на бота!\\n&7Пожалуйста, перезайдите на сервер через 2 секунды для подтверждения.\"\n" +
                     "  blacklist-time-ms: 600000\n" +
                     "  blacklist-threshold: 3\n" +
+                    "  dedicated-world:\n" +
+                    "    enabled: true # Выделенный мир верификации Sonar\n" +
+                    "    world-name: \"grim_verification\"\n" +
+                    "    spawn-height-offset: 4.0 # Высота падения для проверки гравитации\n" +
+                    "  checks:\n" +
+                    "    gravity: true # Проверка гравитации Sonar ((lastDeltaY - 0.08) * 0.98f)\n" +
+                    "    hitbox-collision: true # Проверка коллизии хитбоксов блоков при приземлении\n" +
+                    "    movement-lock: true # Блокировка движения вне платформы\n" +
+                    "    hide-players: true # Скрывать проверяемых игроков от остальных\n" +
                     "  name-validation:\n" +
                     "    enabled: true\n" +
                     "    regex: \"^[a-zA-Z0-9_]{3,16}$\"\n" +
