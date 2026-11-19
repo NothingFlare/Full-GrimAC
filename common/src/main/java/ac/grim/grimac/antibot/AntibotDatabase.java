@@ -117,10 +117,21 @@ public class AntibotDatabase {
         } catch (Throwable ignored) {}
 
         // 3. Verified players
+        long verificationCooldown = 3600L;
+        AntiBotManager abm = AntiBotManager.getInstance();
+        if (abm != null && abm.getConfig() != null) {
+            verificationCooldown = abm.getConfig().getVerificationCooldownSeconds();
+        }
+        long maxAgeMs = verificationCooldown > 0 ? (verificationCooldown * 1000L) : -1L;
+
         try (Statement st = connection.createStatement();
              ResultSet rs = st.executeQuery("SELECT fingerprint, verified_at FROM verified_players;")) {
             while (rs.next()) {
-                verifiedCache.put(rs.getString("fingerprint"), rs.getLong("verified_at"));
+                String fp = rs.getString("fingerprint");
+                long verifiedAt = rs.getLong("verified_at");
+                if (maxAgeMs <= 0 || (now - verifiedAt) <= maxAgeMs) {
+                    verifiedCache.put(fp, verifiedAt);
+                }
             }
         } catch (Throwable ignored) {}
 
@@ -300,9 +311,56 @@ public class AntibotDatabase {
         return Collections.unmodifiableSet(whitelistCache);
     }
 
-    public boolean isVerified(String username, String ip) {
+    public boolean isVerified(String username, String ip, long cooldownSeconds) {
         String fingerprint = username.toLowerCase(Locale.ROOT) + ":" + ip;
-        return verifiedCache.containsKey(fingerprint);
+        Long verifiedAt = verifiedCache.get(fingerprint);
+        if (verifiedAt == null) return false;
+
+        if (cooldownSeconds > 0) {
+            long maxAgeMs = cooldownSeconds * 1000L;
+            if (System.currentTimeMillis() - verifiedAt > maxAgeMs) {
+                verifiedCache.remove(fingerprint);
+                asyncExecutor.submit(() -> {
+                    synchronized (this) {
+                        if (connection == null) return;
+                        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM verified_players WHERE fingerprint=?;")) {
+                            ps.setString(1, fingerprint);
+                            ps.executeUpdate();
+                        } catch (Throwable ignored) {}
+                    }
+                });
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean isVerified(String username, String ip) {
+        long cooldown = 3600L;
+        AntiBotManager manager = AntiBotManager.getInstance();
+        if (manager != null && manager.getConfig() != null) {
+            cooldown = manager.getConfig().getVerificationCooldownSeconds();
+        }
+        return isVerified(username, ip, cooldown);
+    }
+
+    public void pruneExpiredVerified(long cooldownSeconds) {
+        if (cooldownSeconds <= 0) return;
+        long now = System.currentTimeMillis();
+        long maxAgeMs = cooldownSeconds * 1000L;
+
+        verifiedCache.entrySet().removeIf(entry -> (now - entry.getValue()) > maxAgeMs);
+
+        asyncExecutor.submit(() -> {
+            synchronized (this) {
+                if (connection == null) return;
+                long threshold = now - maxAgeMs;
+                try (PreparedStatement ps = connection.prepareStatement("DELETE FROM verified_players WHERE verified_at < ?;")) {
+                    ps.setLong(1, threshold);
+                    ps.executeUpdate();
+                } catch (Throwable ignored) {}
+            }
+        });
     }
 
     public void addVerified(String username, String ip) {

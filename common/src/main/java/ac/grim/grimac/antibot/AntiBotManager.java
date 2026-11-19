@@ -157,7 +157,7 @@ public class AntiBotManager {
         }
 
         // 8. Bot Verification Challenge at Pre-Login (for RECONNECT or BOTH mode)
-        boolean isVerified = database.isVerified(username, ip);
+        boolean isVerified = database.isVerified(username, ip, config.getVerificationCooldownSeconds());
         String timing = config.getVerificationTiming();
         String mode = config.getVerificationMode();
         boolean isAttack = attackTracker.isUnderAttack();
@@ -209,7 +209,7 @@ public class AntiBotManager {
     public boolean shouldVerifyInGame(String username, String ip) {
         if (!config.isAntibotEnabled()) return false;
         if (database.isWhitelisted(ip) || database.isWhitelisted(username)) return false;
-        if (database.isVerified(username, ip)) return false;
+        if (database.isVerified(username, ip, config.getVerificationCooldownSeconds())) return false;
 
         String mode = config.getVerificationMode();
         if (!"IN_GAME".equalsIgnoreCase(mode) && !"BOTH".equalsIgnoreCase(mode)) {
@@ -292,15 +292,24 @@ public class AntiBotManager {
         return brandPattern == null || brandPattern.matcher(brand).matches();
     }
 
+    private long tickCounter = 0;
+
     public void tick() {
         if (attackTracker != null) {
             attackTracker.tick();
         }
 
+        tickCounter++;
+
         // Periodic cleanup of expired pending verification challenges (> 60s)
         long now = System.currentTimeMillis();
         long window = config != null ? config.getReconnectWindowMs() : 60000;
         pendingVerifications.entrySet().removeIf(entry -> (now - entry.getValue()) > window);
+
+        // Prune expired verified players from memory and database every 60 seconds (60 ticks)
+        if (tickCounter % 60 == 0 && database != null && config != null) {
+            database.pruneExpiredVerified(config.getVerificationCooldownSeconds());
+        }
     }
 
     private void broadcastStaff(String message) {

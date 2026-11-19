@@ -40,6 +40,9 @@ public class GrimAntiBot implements BuildableCommand {
         commandManager.command(antibotBase.literal("unverify")
                 .required("player", StringParser.stringParser())
                 .handler(this::handleUnverify));
+        commandManager.command(antibotBase.literal("cooldown")
+                .required("value", StringParser.stringParser())
+                .handler(this::handleCooldown));
         commandManager.command(antibotBase.literal("reload").handler(this::handleReload));
     }
 
@@ -56,7 +59,9 @@ public class GrimAntiBot implements BuildableCommand {
         sender.sendMessage(Component.text("§8§m--------------------------------------------------"));
         sender.sendMessage(Component.text("§e§lGrimAC — Статус AntiBot системы"));
         sender.sendMessage(Component.text("§7Статус системы: " + (manager.getConfig().isAntibotEnabled() ? "§aВКЛЮЧЕНА" : "§cВЫКЛЮЧЕНА")));
-        sender.sendMessage(Component.text("§7Режим проверки: §b" + manager.getConfig().getVerificationTiming()));
+        sender.sendMessage(Component.text("§7Режим проверки: §b" + manager.getConfig().getVerificationTiming() + " §7(" + manager.getConfig().getVerificationMode() + ")"));
+        long cd = manager.getConfig().getVerificationCooldownSeconds();
+        sender.sendMessage(Component.text("§7Кулдаун проверки: " + (cd <= 0 ? "§cБессрочно (0 сек)" : "§e" + cd + " сек (" + formatDuration(cd) + ")")));
         sender.sendMessage(Component.text("§7Режим атаки: " + (tracker.isUnderAttack() ? "§c§lАТАКА АКТИВНА" : "§aСпокойно")));
         sender.sendMessage(Component.text("§7Входов в секунду: §e" + tracker.getLastJoinsPerSecond() + " §7(Пик: §c" + tracker.getPeakJoinsPerSecond() + "§7)"));
         sender.sendMessage(Component.text("§7Подключений в сек: §e" + tracker.getLastConnectionsPerSecond() + " §7(Пик: §c" + tracker.getPeakConnectionsPerSecond() + "§7)"));
@@ -106,6 +111,18 @@ public class GrimAntiBot implements BuildableCommand {
         }
     }
 
+    private void handleCooldown(@NotNull CommandContext<Sender> context) {
+        Sender sender = context.sender();
+        String val = context.get("value");
+        AntiBotManager manager = AntiBotManager.getInstance();
+        if (manager == null || manager.getConfig() == null) return;
+
+        long seconds = parseCooldownInput(val);
+        manager.getConfig().setVerificationCooldownSeconds(seconds);
+        String msg = seconds <= 0 ? "§cБессрочно (проверка один раз)" : "§a" + seconds + " сек (" + formatDuration(seconds) + ")";
+        sender.sendMessage(Component.text("§eGrimAC §8» §fКулдаун проверки установлен на: " + msg + "§f. (Для постоянного сохранения обновите antibot.yml)"));
+    }
+
     private void handleReload(@NotNull CommandContext<Sender> context) {
         Sender sender = context.sender();
         AntiBotManager manager = AntiBotManager.getInstance();
@@ -113,5 +130,44 @@ public class GrimAntiBot implements BuildableCommand {
             manager.reload(GrimAPI.INSTANCE.getGrimPlugin().getDataFolder());
             sender.sendMessage(Component.text("§eGrimAC §8» §aКонфигурация antibot.yml успешно перезагружена!"));
         }
+    }
+
+    private static long parseCooldownInput(String val) {
+        if (val == null) return 3600;
+        String s = val.trim().toLowerCase(java.util.Locale.ROOT);
+        try {
+            if (s.endsWith("h") || s.endsWith("ч")) {
+                return (long) (Double.parseDouble(s.substring(0, s.length() - 1).trim()) * 3600);
+            } else if (s.endsWith("m") || s.endsWith("м")) {
+                return (long) (Double.parseDouble(s.substring(0, s.length() - 1).trim()) * 60);
+            } else if (s.endsWith("s") || s.endsWith("с")) {
+                return (long) Double.parseDouble(s.substring(0, s.length() - 1).trim());
+            } else if (s.endsWith("d") || s.endsWith("д")) {
+                return (long) (Double.parseDouble(s.substring(0, s.length() - 1).trim()) * 86400);
+            } else {
+                return Long.parseLong(s);
+            }
+        } catch (NumberFormatException ignored) {
+            return 3600;
+        }
+    }
+
+    private static String formatDuration(long seconds) {
+        if (seconds <= 0) return "0 сек";
+        if (seconds % 3600 == 0) {
+            long hours = seconds / 3600;
+            return hours + " ч.";
+        }
+        if (seconds >= 3600) {
+            long hours = seconds / 3600;
+            long mins = (seconds % 3600) / 60;
+            return mins > 0 ? (hours + " ч. " + mins + " мин.") : (hours + " ч.");
+        }
+        if (seconds >= 60) {
+            long mins = seconds / 60;
+            long rem = seconds % 60;
+            return rem > 0 ? (mins + " мин. " + rem + " сек.") : (mins + " мин.");
+        }
+        return seconds + " сек.";
     }
 }

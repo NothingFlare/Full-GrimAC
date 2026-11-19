@@ -39,6 +39,7 @@ public class AntiBotConfig {
     private String verificationTiming = "ALWAYS"; // ALWAYS, DURING_ATTACK, OFF
     private String verificationMode = "IN_GAME"; // IN_GAME, RECONNECT, BOTH
     private double inGameDurationSeconds = 2.5;
+    private long verificationCooldownSeconds = 3600; // Verification cooldown (default: 1 hour = 3600 seconds)
     private String verificationWelcomeMessage = "&e&lGrimAC &8» &aВы проходите верификацию. Пожалуйста, не двигайтесь, это автоматический процесс.";
     private String verificationActionbarMessage = "&eПроверка на бота: &fОсталось &a{time} сек.";
     private String verificationTitle = "&e&lВЕРИФИКАЦИЯ";
@@ -112,6 +113,13 @@ public class AntiBotConfig {
             verificationTiming = getString(verification, "timing", verificationTiming).toUpperCase(Locale.ROOT);
             verificationMode = getString(verification, "mode", verificationMode).toUpperCase(Locale.ROOT);
             inGameDurationSeconds = getDouble(verification, "in-game-duration-seconds", inGameDurationSeconds);
+            if (verification.containsKey("cooldown-seconds")) {
+                verificationCooldownSeconds = parseDurationSeconds(verification, "cooldown-seconds", verificationCooldownSeconds);
+            } else if (verification.containsKey("cooldown")) {
+                verificationCooldownSeconds = parseDurationSeconds(verification, "cooldown", verificationCooldownSeconds);
+            } else if (verification.containsKey("cooldown-hours")) {
+                verificationCooldownSeconds = (long) (getDouble(verification, "cooldown-hours", 1.0) * 3600);
+            }
             verificationWelcomeMessage = getString(verification, "welcome-message", verificationWelcomeMessage);
             verificationActionbarMessage = getString(verification, "actionbar-message", verificationActionbarMessage);
             verificationTitle = getString(verification, "title-message", verificationTitle);
@@ -194,6 +202,7 @@ public class AntiBotConfig {
                     "  timing: ALWAYS # Режим проверки: ALWAYS (всегда для новых), DURING_ATTACK (только при атаке), OFF (выкл)\n" +
                     "  mode: IN_GAME # Тип проверки: IN_GAME (внутриигровая с заморозкой и таймером Sonar), RECONNECT (перезаход), BOTH\n" +
                     "  in-game-duration-seconds: 2.5 # Длительность внутриигровой проверки\n" +
+                    "  cooldown-seconds: 3600 # Кулдаун проверки (по умолчанию 1 час = 3600 сек). 0 = бессрочно.\n" +
                     "  welcome-message: \"&e&lGrimAC &8» &aВы проходите верификацию. Пожалуйста, не двигайтесь, это автоматический процесс.\"\n" +
                     "  actionbar-message: \"&eПроверка на бота: &fОсталось &a{time} сек.\"\n" +
                     "  title-message: \"&e&lВЕРИФИКАЦИЯ\"\n" +
@@ -266,5 +275,33 @@ public class AntiBotConfig {
     private String getString(Map<String, Object> map, String key, String def) {
         Object val = map.get(key);
         return val != null ? val.toString() : def;
+    }
+
+    private long parseDurationSeconds(Map<String, Object> map, String key, long def) {
+        Object val = map.get(key);
+        if (val instanceof Number num) {
+            return num.longValue();
+        }
+        if (val instanceof String str) {
+            str = str.trim().toLowerCase(Locale.ROOT);
+            try {
+                if (str.endsWith("h") || str.endsWith("ч")) {
+                    String numStr = str.substring(0, str.length() - 1).trim();
+                    return (long) (Double.parseDouble(numStr) * 3600);
+                } else if (str.endsWith("m") || str.endsWith("м")) {
+                    String numStr = str.substring(0, str.length() - 1).trim();
+                    return (long) (Double.parseDouble(numStr) * 60);
+                } else if (str.endsWith("s") || str.endsWith("с")) {
+                    String numStr = str.substring(0, str.length() - 1).trim();
+                    return (long) Double.parseDouble(numStr);
+                } else if (str.endsWith("d") || str.endsWith("д")) {
+                    String numStr = str.substring(0, str.length() - 1).trim();
+                    return (long) (Double.parseDouble(numStr) * 86400);
+                } else {
+                    return Long.parseLong(str);
+                }
+            } catch (NumberFormatException ignored) {}
+        }
+        return def;
     }
 }
