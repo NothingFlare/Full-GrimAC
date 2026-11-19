@@ -136,30 +136,10 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
         Bukkit.getPluginManager().registerEvents(guiManager, this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.RedstoneOptimizer(), this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.TNTOptimizer(), this);
-
-        // Initialize Antibot & Alt Detection System
-        ac.grim.grimac.antibot.AntiBotManager antiBotManager = new ac.grim.grimac.antibot.AntiBotManager();
-        antiBotManager.init(plugin.getDataFolder());
-
-        // Initialize Dedicated Verification World
-        if (antiBotManager.getConfig().isDedicatedWorldEnabled()) {
-            ac.grim.grimac.platform.bukkit.antibot.VerificationWorldManager worldManager =
-                    new ac.grim.grimac.platform.bukkit.antibot.VerificationWorldManager(this, antiBotManager.getConfig().getDedicatedWorldName());
-            worldManager.initWorld();
-        }
-
-        ac.grim.grimac.platform.bukkit.antibot.BukkitAntiBotListener antiBotListener = new ac.grim.grimac.platform.bukkit.antibot.BukkitAntiBotListener();
-        Bukkit.getPluginManager().registerEvents(antiBotListener, this);
-        getScheduler().getAsyncScheduler().runAtFixedRate(plugin, antiBotManager::tick, 20L, 20L);
-        getScheduler().getGlobalRegionScheduler().runAtFixedRate(plugin, antiBotListener::tickVerificationSessions, 1L, 1L);
     }
 
     @Override
     public void onDisable() {
-        ac.grim.grimac.antibot.AntiBotManager antiBotManager = ac.grim.grimac.antibot.AntiBotManager.getInstance();
-        if (antiBotManager != null) {
-            antiBotManager.close();
-        }
         GrimAPI.INSTANCE.stop();
     }
 

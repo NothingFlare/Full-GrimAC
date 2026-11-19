@@ -175,26 +175,6 @@ bukkit {
             default = Permission.Default.OP
         }
 
-        register("grim.antibot") {
-            description = "Manage AntiBot system and view statistics"
-            default = Permission.Default.OP
-        }
-
-        register("grim.alts") {
-            description = "Inspect player alt accounts"
-            default = Permission.Default.OP
-        }
-
-        register("grim.blacklist") {
-            description = "Manage AntiBot IP blacklist"
-            default = Permission.Default.OP
-        }
-
-        register("grim.whitelist") {
-            description = "Manage AntiBot IP and player whitelist"
-            default = Permission.Default.OP
-        }
-
         register("grim.alerts") {
             description = "Receive alerts for violations"
             default = Permission.Default.OP
