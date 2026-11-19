@@ -15,8 +15,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.ExplosionPrimeEvent;
 
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * High-performance TNT physics and explosion optimizer.
@@ -28,9 +29,9 @@ public class TNTOptimizer implements Listener {
 
     public static volatile boolean enabled = false;
 
-    private static long currentTick = -1;
-    private static final Set<Long> recentExplosionLocations = new HashSet<>(256);
-    private static int explosionsThisTick = 0;
+    private static volatile long currentTick = -1;
+    private static final Set<Long> recentExplosionLocations = ConcurrentHashMap.newKeySet(256);
+    private static final AtomicInteger explosionsThisTick = new AtomicInteger();
     private static final int MAX_EXPLOSIONS_PER_TICK = 60;
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -46,10 +47,10 @@ public class TNTOptimizer implements Listener {
         if (tick != currentTick) {
             currentTick = tick;
             recentExplosionLocations.clear();
-            explosionsThisTick = 0;
+            explosionsThisTick.set(0);
         }
 
-        explosionsThisTick++;
+        int count = explosionsThisTick.incrementAndGet();
 
         // 1. Water check: TNT exploding in water deals 0 block damage in vanilla.
         // Clearing blockList bypasses 1,352 expensive raycasts per primed TNT in cannon water chambers!
@@ -71,7 +72,7 @@ public class TNTOptimizer implements Listener {
         recentExplosionLocations.add(posKey);
 
         // 3. Mass explosion rate-limiting for extreme lag machines
-        if (explosionsThisTick > MAX_EXPLOSIONS_PER_TICK) {
+        if (count > MAX_EXPLOSIONS_PER_TICK) {
             event.blockList().clear();
         }
     }
@@ -82,7 +83,7 @@ public class TNTOptimizer implements Listener {
 
         if (event.getEntity() instanceof TNTPrimed) {
             // Disable unnecessary fire spread calculations in mass TNT blasts
-            if (explosionsThisTick > 20) {
+            if (explosionsThisTick.get() > 20) {
                 event.setFire(false);
             }
         }
@@ -94,6 +95,6 @@ public class TNTOptimizer implements Listener {
 
     public static void clearCache() {
         recentExplosionLocations.clear();
-        explosionsThisTick = 0;
+        explosionsThisTick.set(0);
     }
 }

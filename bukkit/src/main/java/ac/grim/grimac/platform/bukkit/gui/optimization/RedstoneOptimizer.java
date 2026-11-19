@@ -13,8 +13,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockRedstoneEvent;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * High-performance redstone caching and anti-lag optimizer.
@@ -25,9 +25,9 @@ public class RedstoneOptimizer implements Listener {
 
     public static volatile boolean enabled = false;
 
-    private static long currentTick = -1;
-    private static final Map<Long, Integer> signalCache = new HashMap<>(512);
-    private static final Map<Long, Integer> updateCountCache = new HashMap<>(512);
+    private static volatile long currentTick = -1;
+    private static final Map<Long, Integer> signalCache = new ConcurrentHashMap<>(512);
+    private static final Map<Long, Integer> updateCountCache = new ConcurrentHashMap<>(512);
 
     // Limit maximum updates per single block within one server tick (50ms).
     // Standard circuits trigger at most 1-2 times per tick; > 40 is a runaway lag machine.

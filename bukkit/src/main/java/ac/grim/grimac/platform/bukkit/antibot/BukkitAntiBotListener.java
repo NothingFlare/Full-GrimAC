@@ -16,6 +16,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.net.InetAddress;
@@ -23,7 +24,7 @@ import java.util.UUID;
 
 public class BukkitAntiBotListener implements Listener {
 
-    @EventHandler(priority = EventPriority.LOWEST)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
         AntiBotManager manager = AntiBotManager.getInstance();
         if (manager == null) return;
@@ -47,7 +48,26 @@ public class BukkitAntiBotListener implements Listener {
         AntiBotManager.PreLoginResult result = manager.evaluatePreLogin(ip, username, uuid, protocolVersion);
         if (!result.allowed()) {
             String kickReason = result.kickReason() != null ? result.kickReason() : "&cОтключен защитой антибота.";
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, ChatColor.translateAlternateColorCodes('&', kickReason));
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, ChatColor.translateAlternateColorCodes('&', kickReason));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPlayerLogin(PlayerLoginEvent event) {
+        AntiBotManager manager = AntiBotManager.getInstance();
+        if (manager == null) return;
+
+        Player player = event.getPlayer();
+        if (player.hasMetadata("NPC")) return;
+
+        InetAddress addr = event.getAddress();
+        if (addr == null) return;
+        String ip = addr.getHostAddress();
+
+        // Secondary defense check for blacklisted IPs
+        if (manager.getDatabase() != null && manager.getDatabase().isBlacklisted(ip)) {
+            event.disallow(PlayerLoginEvent.Result.KICK_OTHER,
+                    ChatColor.translateAlternateColorCodes('&', "&cВаш IP адрес временно заблокирован защитой антибота GrimAC."));
         }
     }
 
@@ -57,9 +77,23 @@ public class BukkitAntiBotListener implements Listener {
         if (manager == null) return;
 
         Player player = event.getPlayer();
+        if (player.hasMetadata("NPC")) return;
+
+        String ip = null;
         if (player.getAddress() != null && player.getAddress().getAddress() != null) {
-            String ip = player.getAddress().getAddress().getHostAddress();
+            ip = player.getAddress().getAddress().getHostAddress();
+        }
+
+        if (ip != null) {
             manager.onPlayerJoin(player.getUniqueId(), player.getName(), ip);
+        }
+
+        // Send welcome notice if player just passed verification challenge
+        if (manager.checkAndClearWelcomePending(player.getUniqueId())) {
+            String successMsg = manager.getConfig().getVerificationSuccessMessage();
+            if (successMsg != null && !successMsg.isEmpty()) {
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', successMsg));
+            }
         }
     }
 

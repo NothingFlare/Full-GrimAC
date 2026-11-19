@@ -9,6 +9,7 @@ package ac.grim.grimac.antibot;
 import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.utils.anticheat.LogUtil;
 import lombok.Getter;
+import lombok.Setter;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
@@ -19,6 +20,7 @@ import java.io.InputStream;
 import java.util.*;
 
 @Getter
+@Setter
 public class AntiBotConfig {
 
     private boolean antibotEnabled = true;
@@ -34,6 +36,11 @@ public class AntiBotConfig {
     private boolean notifyStaff = true;
 
     // Verification & Blacklist
+    private String verificationTiming = "ALWAYS"; // ALWAYS, DURING_ATTACK, OFF
+    private long reconnectMinDelayMs = 2000;
+    private long reconnectWindowMs = 60000;
+    private String verificationKickMessage = "&e[GrimAC AntiBot]\n&aПроверка на бота!\n&7Пожалуйста, перезайдите на сервер через 2 секунды для подтверждения.";
+    private String verificationSuccessMessage = "&eGrimAC &8» &aПроверка на бота успешно пройдена! Приятной игры.";
     private long blacklistTimeMs = 600000;
     private int blacklistThreshold = 3;
     private boolean nameValidationEnabled = true;
@@ -95,6 +102,11 @@ public class AntiBotConfig {
 
         Map<String, Object> verification = getSection(data, "verification");
         if (verification != null) {
+            verificationTiming = getString(verification, "timing", verificationTiming).toUpperCase(Locale.ROOT);
+            reconnectMinDelayMs = getLong(verification, "reconnect-min-delay-ms", reconnectMinDelayMs);
+            reconnectWindowMs = getLong(verification, "reconnect-window-ms", reconnectWindowMs);
+            verificationKickMessage = getString(verification, "kick-message", verificationKickMessage);
+            verificationSuccessMessage = getString(verification, "success-message", verificationSuccessMessage);
             blacklistTimeMs = getLong(verification, "blacklist-time-ms", blacklistTimeMs);
             blacklistThreshold = getInt(verification, "blacklist-threshold", blacklistThreshold);
 
@@ -163,8 +175,13 @@ public class AntiBotConfig {
                     "  attack-cooldown-delay-ms: 3000\n" +
                     "  notify-staff: true\n" +
                     "\n" +
-                    "# Проверка и фильтрация бот-подключений\n" +
+                    "# Проверка и фильтрация бот-подключений (Verification)\n" +
                     "verification:\n" +
+                    "  timing: ALWAYS # Режим проверки: ALWAYS (всегда для новых), DURING_ATTACK (только при атаке), OFF (выкл)\n" +
+                    "  reconnect-min-delay-ms: 2000 # Минимальная задержка перед переподключением\n" +
+                    "  reconnect-window-ms: 60000 # Окно ожидания переподключения\n" +
+                    "  kick-message: \"&e[GrimAC AntiBot]\\n&aПроверка на бота!\\n&7Пожалуйста, перезайдите на сервер через 2 секунды для подтверждения.\"\n" +
+                    "  success-message: \"&eGrimAC &8» &aПроверка на бота успешно пройдена! Приятной игры.\"\n" +
                     "  blacklist-time-ms: 600000\n" +
                     "  blacklist-threshold: 3\n" +
                     "  name-validation:\n" +

@@ -146,8 +146,12 @@ public class AntibotDatabase {
     public void recordLoginAsync(UUID uuid, String username, String ip) {
         long now = System.currentTimeMillis();
 
+        // Preserve original first_login timestamp if known
+        AltRecord existing = uuidToAltCache.get(uuid);
+        long first = existing != null ? existing.firstLogin() : now;
+
         // Immediate memory cache update
-        AltRecord record = new AltRecord(uuid, username, ip, now, now);
+        AltRecord record = new AltRecord(uuid, username, ip, first, now);
         uuidToAltCache.put(uuid, record);
 
         List<AltRecord> list = ipToAltsCache.computeIfAbsent(ip, k -> new CopyOnWriteArrayList<>());
@@ -164,7 +168,7 @@ public class AntibotDatabase {
                     ps.setString(1, uuid.toString());
                     ps.setString(2, username);
                     ps.setString(3, ip);
-                    ps.setLong(4, now);
+                    ps.setLong(4, first);
                     ps.setLong(5, now);
                     ps.executeUpdate();
                 } catch (Throwable t) {
@@ -315,6 +319,32 @@ public class AntibotDatabase {
                     ps.setString(3, ip);
                     ps.setLong(4, now);
                     ps.executeUpdate();
+                } catch (Throwable ignored) {}
+            }
+        });
+    }
+
+    public void removeVerifiedByPlayer(String username) {
+        String lower = username.toLowerCase(Locale.ROOT);
+        verifiedCache.keySet().removeIf(k -> k.startsWith(lower + ":"));
+        asyncExecutor.submit(() -> {
+            synchronized (this) {
+                if (connection == null) return;
+                try (PreparedStatement ps = connection.prepareStatement("DELETE FROM verified_players WHERE LOWER(username)=?;")) {
+                    ps.setString(1, lower);
+                    ps.executeUpdate();
+                } catch (Throwable ignored) {}
+            }
+        });
+    }
+
+    public void clearVerified() {
+        verifiedCache.clear();
+        asyncExecutor.submit(() -> {
+            synchronized (this) {
+                if (connection == null) return;
+                try (Statement st = connection.createStatement()) {
+                    st.execute("DELETE FROM verified_players;");
                 } catch (Throwable ignored) {}
             }
         });

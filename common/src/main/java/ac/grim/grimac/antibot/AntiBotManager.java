@@ -31,6 +31,9 @@ public class AntiBotManager {
     private final ConcurrentMap<String, Integer> onlinePerIp = new ConcurrentHashMap<>(256);
     private final ConcurrentMap<String, Long> lastConnectionTime = new ConcurrentHashMap<>(512);
     private final ConcurrentMap<String, Integer> violationsPerIp = new ConcurrentHashMap<>(256);
+    private final ConcurrentMap<String, Long> pendingVerifications = new ConcurrentHashMap<>(256);
+    private final ConcurrentMap<UUID, String> playerIpMap = new ConcurrentHashMap<>(512);
+    private final Set<UUID> verifiedWelcomePending = ConcurrentHashMap.newKeySet();
 
     private Pattern namePattern;
     private Pattern brandPattern;
@@ -153,15 +156,46 @@ public class AntiBotManager {
             }
         }
 
-        // 8. Attack mode strict filtering
-        if (attackTracker.isUnderAttack()) {
-            if (!database.isVerified(username, ip)) {
-                // Connection during attack: must pass verification or rate check
-                int violations = violationsPerIp.getOrDefault(ip, 0);
-                if (violations >= 2) {
-                    database.addBlacklist(ip, "Бот-атака", config.getBlacklistTimeMs());
+        // 8. Bot Verification Challenge (Sonar-Style Two-Step Reconnect Challenge)
+        boolean isVerified = database.isVerified(username, ip);
+        String timing = config.getVerificationTiming();
+        boolean isAttack = attackTracker.isUnderAttack();
+        boolean requireVerification = !isVerified && (
+                "ALWAYS".equalsIgnoreCase(timing) ||
+                ("DURING_ATTACK".equalsIgnoreCase(timing) && isAttack) ||
+                isAttack
+        );
+
+        if (requireVerification) {
+            String verifyKey = ip + ":" + username.toLowerCase(Locale.ROOT);
+            Long challengeTime = pendingVerifications.get(verifyKey);
+
+            if (challengeTime == null) {
+                // First attempt: intercept connection and challenge player to reconnect
+                pendingVerifications.put(verifyKey, now);
+                attackTracker.onBotBlocked();
+                LogUtil.info("[Antibot] Intercepted unverified connection for bot check: " + username + " (" + ip + ")");
+                return PreLoginResult.disallow(config.getVerificationKickMessage());
+            } else {
+                long elapsed = now - challengeTime;
+                if (elapsed < config.getReconnectMinDelayMs()) {
+                    // Reconnected too fast (dumb bot spam)
                     attackTracker.onBotBlocked();
-                    return PreLoginResult.disallow("&cСервер находится под защитой от бот-атаки. Попробуйте войти позже.");
+                    recordViolation(ip, "Слишком быстрое переподключение при проверке на бота");
+                    return PreLoginResult.disallow("&cСлишком быстрое переподключение! Подождите " +
+                            Math.max(1, config.getReconnectMinDelayMs() / 1000) + " сек перед повторным входом.");
+                } else if (elapsed > config.getReconnectWindowMs()) {
+                    // Challenge expired, reissue challenge
+                    pendingVerifications.put(verifyKey, now);
+                    attackTracker.onBotBlocked();
+                    return PreLoginResult.disallow(config.getVerificationKickMessage());
+                } else {
+                    // Valid reconnect! Successfully verified as legitimate human player!
+                    pendingVerifications.remove(verifyKey);
+                    database.addVerified(username, ip);
+                    attackTracker.onVerifiedLogin();
+                    verifiedWelcomePending.add(uuid);
+                    LogUtil.info("[Antibot] Player " + username + " (" + ip + ") passed bot verification via reconnect challenge!");
                 }
             }
         }
@@ -173,7 +207,7 @@ public class AntiBotManager {
     public void onPlayerJoin(UUID uuid, String username, String ip) {
         if (config == null) return;
 
-        // Increment online IP counter
+        playerIpMap.put(uuid, ip);
         onlinePerIp.compute(ip, (k, v) -> (v == null ? 1 : v + 1));
 
         // Mark as verified
@@ -205,12 +239,21 @@ public class AntiBotManager {
         }
     }
 
-    public void onPlayerQuit(UUID uuid, String ip) {
-        if (ip == null) return;
-        onlinePerIp.compute(ip, (k, v) -> {
-            if (v == null || v <= 1) return null;
-            return v - 1;
-        });
+    public void onPlayerQuit(UUID uuid, String fallbackIp) {
+        String ip = playerIpMap.remove(uuid);
+        if (ip == null) {
+            ip = fallbackIp;
+        }
+        if (ip != null) {
+            onlinePerIp.compute(ip, (k, v) -> {
+                if (v == null || v <= 1) return null;
+                return v - 1;
+            });
+        }
+    }
+
+    public boolean checkAndClearWelcomePending(UUID uuid) {
+        return verifiedWelcomePending.remove(uuid);
     }
 
     public void recordViolation(String ip, String reason) {
@@ -232,6 +275,11 @@ public class AntiBotManager {
         if (attackTracker != null) {
             attackTracker.tick();
         }
+
+        // Periodic cleanup of expired pending verification challenges (> 60s)
+        long now = System.currentTimeMillis();
+        long window = config != null ? config.getReconnectWindowMs() : 60000;
+        pendingVerifications.entrySet().removeIf(entry -> (now - entry.getValue()) > window);
     }
 
     private void broadcastStaff(String message) {

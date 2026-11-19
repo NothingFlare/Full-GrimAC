@@ -32,6 +32,7 @@ public class AttackTracker {
     private final AtomicLong totalVerifiedLogins = new AtomicLong();
 
     private volatile boolean underAttack = false;
+    private volatile boolean manualAttackMode = false;
     private long attackStartTime = 0;
     private long lastAttackPeakTime = 0;
     private int attackIncidentCount = 0;
@@ -85,7 +86,7 @@ public class AttackTracker {
                 }
             }
         } else {
-            if (underAttack) {
+            if (underAttack && !manualAttackMode) {
                 long duration = now - attackStartTime;
                 long sincePeak = now - lastAttackPeakTime;
 
@@ -109,6 +110,7 @@ public class AttackTracker {
     }
 
     public void setUnderAttackManual(boolean status) {
+        this.manualAttackMode = status;
         this.underAttack = status;
         if (status) {
             attackStartTime = System.currentTimeMillis();

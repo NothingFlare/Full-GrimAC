@@ -110,7 +110,7 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
 | Command | Description | Default Permission |
 | :--- | :--- | :--- |
 | `/grim gui` | Opens the graphical settings menu for checks and server optimizations | `grim.gui` |
-| `/grim antibot [stats\|toggle\|attack\|reload]` | Displays AntiBot status, toggles system, simulates attacks, or reloads | `grim.antibot` |
+| `/grim antibot [stats\|toggle\|attack\|unverify\|clearverified\|reload]` | Displays AntiBot status, toggles system, simulates attacks, manages verified database, or reloads | `grim.antibot` |
 | `/grim alts <player\|ip>` | Inspects alt accounts, historical names, and login dates by player or IP | `grim.alts` |
 | `/grim blacklist <add\|remove\|clear\|list> [ip]` | Manages temporary or permanent AntiBot IP blacklists | `grim.blacklist` |
 | `/grim whitelist <add\|remove\|clear\|list> [target]` | Manages AntiBot bypass whitelist for players or IP addresses | `grim.whitelist` |
@@ -176,7 +176,13 @@ antibot:
   enabled: true
   rejoin-delay-ms: 2500
   max-online-per-ip: 3
-  blacklisted-protocols: []
+
+verification:
+  timing: ALWAYS # ALWAYS (all new players), DURING_ATTACK (only under attack), or OFF
+  reconnect-min-delay-ms: 2000
+  reconnect-window-ms: 60000
+  kick-message: "&e[GrimAC AntiBot]\n&aПроверка на бота!\n&7Пожалуйста, перезайдите на сервер через 2 секунды для подтверждения."
+  success-message: "&eGrimAC &8» &aПроверка на бота успешно пройдена! Приятной игры."
   name-validation:
     enabled: true
     regex: "^[a-zA-Z0-9_]{3,16}$"
@@ -184,14 +190,16 @@ antibot:
     enabled: true
     max-length: 64
     regex: "^[!-~ §]+$"
-  attack-detection:
-    joins-per-second: 8
-    connections-per-second: 15
-    duration-seconds: 30
-    announcements: true
-  auto-blacklist:
-    threshold: 3
-    duration-seconds: 600
+  blacklisted-protocols: []
+  blacklist-time-ms: 600000
+  blacklist-threshold: 3
+
+attack-tracker:
+  min-players-for-attack: 8
+  min-attack-duration-ms: 30000
+  min-attack-threshold: 2
+  attack-cooldown-delay-ms: 3000
+  notify-staff: true
 
 alts:
   enabled: true
