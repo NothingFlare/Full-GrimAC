@@ -8,7 +8,7 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# Hulp nodig of vragen? https://sonar.top/discord
+# Hulp nodig of vragen? https://github.com/NothingFlare/Full-GrimAC
 # Broncode: https://github.com/jonesdevelopment/sonar
 # Documentatie: https://docs.jonesdev.xyz/administration/configuring-sonar
 # Copyright Jones Development and Sonar Contributors, gelicentieerd onder GPL-3.0
@@ -185,7 +185,7 @@ verification:
   # Sonar cached de meeste pakketten die het naar de client stuurt, inclusief het LoginSuccess pakket.
   # Welke gebruikersnaam moet Sonar gebruiken voor het LoginSucces pakket?
   # De gebruikersnaam zal niet zichtbaar zijn voor de speler zonder client aanpassingen
-  cached-username: "Sonar"
+  cached-username: "Grim"
   # Moet Sonar nieuwe verificatiepogingen registreren?
   log-connections: true
   # Moet Sonar nieuwe verificatiepogingen registreren tijdens aanvallen?

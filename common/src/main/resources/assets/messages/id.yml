@@ -8,18 +8,18 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# Butuh bantuan atau memiliki pertanyaan? https://sonar.top/discord
+# Butuh bantuan atau memiliki pertanyaan? https://github.com/NothingFlare/Full-GrimAC
 # Kode sumber: https://github.com/jonesdevelopment/sonar
 # Copyright Jones Development and Sonar Contributors, dilisensikan di bawah GPL-3.0
 #
 
 # Placeholder untuk setiap '<prefix>' dalam file konfigurasi ini
-prefix: <b><yellow>Sonar</b> <gray>» <white>
+prefix: <b><yellow>Grim</b> <gray>» <white>
 # Placeholder untuk setiap '<support-url>' dalam file konfigurasi ini
-support-url: https://sonar.top/discord/
+support-url: https://github.com/NothingFlare/Full-GrimAC
 # Placeholder untuk setiap '<header>' dalam file konfigurasi ini
 header:
-  - <b><yellow>Sonar</b><reset>
+  - <b><yellow>Grim</b><reset>
   - ''
 # Placeholder untuk setiap '<footer>' dalam file konfigurasi ini
 footer:
@@ -53,7 +53,7 @@ commands:
       - <gray><click:open_url:'https://github.com/jonesdevelopment/sonar'>(C) <copyright-year> Jones Development dan Kontributor Sonar</click>
       - ''
       - <gray>Butuh bantuan atau memiliki pertanyaan?
-      - <white><click:open_url:'https://sonar.top/discord/'><hover:show_text:'(Klik untuk membuka Discord)'>Buka tiket di Discord </hover></click><click:open_url:'https://github.com/jonesdevelopment/sonar/issues'><hover:show_text:'(Klik untuk membuka GitHub)'>atau buka masalah baru di GitHub.
+      - <white><click:open_url:'https://github.com/NothingFlare/Full-GrimAC'><hover:show_text:'(Klik untuk membuka Discord)'>Buka tiket di Discord </hover></click><click:open_url:'https://github.com/jonesdevelopment/sonar/issues'><hover:show_text:'(Klik untuk membuka GitHub)'>atau buka masalah baru di GitHub.
       - ''
     # Format daftar sub-perintah yang ditampilkan saat menjalankan perintah utama
     subcommands: '<suggest-subcommand><hover:show_text:''<gray>Hanya pemain: </gray><only-players><br><gray>Membutuhkan konsol: </gray><only-console><br><gray>Izin: </gray><white><permission><br><gray>Alias: </gray><aliases>''><dark_aqua> ▪ <gray>/sonar <subcommand>  <white><description></hover></suggest-subcommand>'
@@ -282,13 +282,13 @@ verbose:
 # Terjemahan untuk pesan notifikasi serangan Sonar
 notifications:
   # Tata letak untuk judul notifikasi serangan Sonar
-  title: <yellow><b>Sonar<reset>
+  title: <yellow><b>Grim<reset>
   # Tata letak untuk subjudul notifikasi serangan Sonar
   subtitle: <gray>Serangan bot terdeteksi
   # Tata letak untuk notifikasi serangan Sonar di chat
   chat:
     - ''
-    - <yellow><b>Sonar<reset>
+    - <yellow><b>Grim<reset>
     - ''
     - <gray>Serangan bot terdeteksi.
     - ' <dark_aqua>▪ <gray>Login per detik: <white><logins-per-second>'

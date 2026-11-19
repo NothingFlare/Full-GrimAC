@@ -152,6 +152,7 @@ public class CheckManager implements BasicReloadable {
                 .put(AutoTotem.class, new AutoTotem(player))
                 .put(InventoryAutoClicker.class, new InventoryAutoClicker(player))
                 .put(InventoryAction.class, new InventoryAction(player))
+                .put(ac.grim.grimac.checks.impl.inventory.GhostItemCheck.class, new ac.grim.grimac.checks.impl.inventory.GhostItemCheck(player))
                 .put(CombatAutoClicker.class, new CombatAutoClicker(player))
                 .put(KillAuraBot.class, new KillAuraBot(player))
                 .put(AntiXray.class, new AntiXray(player))

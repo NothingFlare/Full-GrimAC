@@ -8,18 +8,18 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# Yardıma mı ihtiyacınız var veya sorularınız mı var? https://sonar.top/discord
+# Yardıma mı ihtiyacınız var veya sorularınız mı var? https://github.com/NothingFlare/Full-GrimAC
 # Kaynak kodu: https://github.com/jonesdevelopment/sonar
 # Copyright Jones Development and Sonar Contributors, GPL-3.0 altında lisanslanmıştır
 #
 
 # Bu yapılandırma dosyasındaki her '<prefix>' için yer tutucu
-prefix: <b><yellow>Sonar</b> <gray>» <white>
+prefix: <b><yellow>Grim</b> <gray>» <white>
 # Bu yapılandırma dosyasındaki her '<support-url>' için yer tutucu
-support-url: https://sonar.top/discord/
+support-url: https://github.com/NothingFlare/Full-GrimAC
 # Bu yapılandırma dosyasındaki her '<header>' için yer tutucu
 header:
-  - <b><yellow>Sonar</b><reset>
+  - <b><yellow>Grim</b><reset>
   - ''
 # Bu yapılandırma dosyasındaki her '<footer>' için yer tutucu
 footer:
@@ -49,11 +49,11 @@ commands:
   main:
     # Ana komutu çalıştırırken her şeyin üstünde gösterilen bilgilendirici mesaj
     header:
-      - <yellow><b>Sonar</b> <version> sürümü <platform> üzerinde çalışıyor.
+      - <yellow><b>Grim</b> <version> sürümü <platform> üzerinde çalışıyor.
       - <gray><click:open_url:'https://github.com/jonesdevelopment/sonar'>(C) <copyright-year> Jones Development ve Sonar Katkıda Bulunanlar</click>
       - ''
       - <gray>Yardıma mı ihtiyacınız var veya sorularınız mı var?
-      - <white><click:open_url:'https://sonar.top/discord/'><hover:show_text:'(Discord\'u açmak için tıklayın)'>Discord üzerinden bir bilet açın </hover></click><click:open_url:'https://github.com/jonesdevelopment/sonar/issues'><hover:show_text:'(GitHub\'ı açmak için tıklayın)'>veya GitHub üzerinde yeni bir sorun açın.
+      - <white><click:open_url:'https://github.com/NothingFlare/Full-GrimAC'><hover:show_text:'(Discord\'u açmak için tıklayın)'>Discord üzerinden bir bilet açın </hover></click><click:open_url:'https://github.com/jonesdevelopment/sonar/issues'><hover:show_text:'(GitHub\'ı açmak için tıklayın)'>veya GitHub üzerinde yeni bir sorun açın.
       - ''
     # Ana komutu çalıştırırken gösterilen alt komutların listesi için biçimlendirme
     subcommands: '<suggest-subcommand><hover:show_text:''<gray>Sadece oyuncular: </gray><only-players><br><gray>Konsol gerekli: </gray><only-console><br><gray>İzin: </gray><white><permission><br><gray>Diğer isimler: </gray><aliases>''><dark_aqua> ▪ <gray>/sonar <subcommand>  <white><description></hover></suggest-subcommand>'
@@ -282,13 +282,13 @@ verbose:
 # Sonar'ın saldırı bildirim mesajları için çeviriler
 notifications:
   # Sonar'ın saldırı bildirimi başlığı için düzen
-  title: <yellow><b>Sonar<reset>
+  title: <yellow><b>Grim<reset>
   # Sonar'ın saldırı bildirimi altyazısı için düzen
   subtitle: <gray>Bir bot saldırısı tespit edildi
   # Sohbette Sonar'ın saldırı bildirimi için düzen
   chat:
     - ''
-    - <yellow><b>Sonar<reset>
+    - <yellow><b>Grim<reset>
     - ''
     - <gray>Bir bot saldırısı tespit edildi.
     - ' <dark_aqua>▪ <gray>Saniye başına giriş sayısı: <white><logins-per-second>'

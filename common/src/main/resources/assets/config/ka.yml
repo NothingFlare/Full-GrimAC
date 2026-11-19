@@ -8,7 +8,7 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# დახმარება გჭირდება ან კითხვა გაქვს? https://sonar.top/discord
+# დახმარება გჭირდება ან კითხვა გაქვს? https://github.com/NothingFlare/Full-GrimAC
 # საწყისი კოდი: https://github.com/jonesdevelopment/sonar
 # Documentation: https://docs.jonesdev.xyz/administration/configuring-sonar
 # Copyright Jones Development and Sonar Contributors, licensed under GPL-3.0
@@ -184,7 +184,7 @@ verification:
   # Sonar ინახავს პაკეტების უმეტესობას, რომლებსაც ის უგზავნის კლიენტს, მათ შორის LoginSuccess პაკეტს.
   # რომელი მომხმარებლის სახელი უნდა გამოიყენოს Sonar-მა LoginSuccess პაკეტისთვის?
   # მომხმარებლის სახელი არ იქნება ხილული მოთამაშისთვის კლიენტის ცვლილებების გარეშე
-  cached-username: "Sonar"
+  cached-username: "Grim"
   # ჩაიწეროს თუ არა Sonar-მა ახალი ვერიფიკაციის მცდელობები?
   log-connections: true
   # ჩაწეროს თუ არა Sonar-მა ახალი ვერიფიკაციის მცდელობები შეტევის დროს?

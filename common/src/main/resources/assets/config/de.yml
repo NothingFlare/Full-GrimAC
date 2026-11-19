@@ -8,7 +8,7 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# Brauchst du Hilfe? https://sonar.top/discord
+# Brauchst du Hilfe? https://github.com/NothingFlare/Full-GrimAC
 # Source code: https://github.com/jonesdevelopment/sonar
 # Dokumentation: https://docs.jonesdev.xyz/administration/configuring-sonar
 # Copyright Jones Development and Sonar Contributors, lizenziert unter GPL-3.0
@@ -183,7 +183,7 @@ verification:
   # Sonar speichert die meisten Pakete, die es an den Client sendet, einschließlich des LoginSuccess-Pakets.
   # Welchen Benutzernamen soll Sonar für das LoginSuccess-Paket verwenden?
   # Der Benutzername ist für den Spieler ohne Änderungen am Client nicht sichtbar
-  cached-username: "Sonar"
+  cached-username: "Grim"
   # Soll Sonar neue Überprüfungsversuche protokollieren?
   log-connections: true
   # Soll Sonar neue Überprüfungsversuche während Angriffen protokollieren?

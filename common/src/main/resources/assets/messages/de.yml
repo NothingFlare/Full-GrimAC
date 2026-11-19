@@ -8,18 +8,18 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# Brauchst du Hilfe? https://sonar.top/discord
+# Brauchst du Hilfe? https://github.com/NothingFlare/Full-GrimAC
 # Source code: https://github.com/jonesdevelopment/sonar
 # Copyright Jones Development and Sonar Contributors, lizenziert unter GPL-3.0
 #
 
 # Platzhalter für jedes '<prefix>' in dieser Konfigurationsdatei
-prefix: <b><yellow>Sonar</b> <gray>» <white>
+prefix: <b><yellow>Grim</b> <gray>» <white>
 # Platzhalter für jede '<support-url>' in dieser Konfigurationsdatei
-support-url: https://sonar.top/discord/
+support-url: https://github.com/NothingFlare/Full-GrimAC
 # Platzhalter für jedes '<header>' in dieser Konfigurationsdatei
 header:
-  - <b><yellow>Sonar</b><reset>
+  - <b><yellow>Grim</b><reset>
   - ''
 # Platzhalter für jedes '<footer>' in dieser Konfigurationsdatei
 footer:
@@ -54,7 +54,7 @@ commands:
       - <gray><click:open_url:'https://github.com/jonesdevelopment/sonar'>(C) <copyright-year> Jones Development und Sonar Mitwirkende</click>
       - ''
       - <gray>Brauchst du Hilfe oder hast du Fragen?
-      - <white><click:open_url:'https://sonar.top/discord/'><hover:show_text:'(Klicken um Discord zu öffnen)'>Öffne ein Ticket auf Discord </hover></click><click:open_url:'https://github.com/jonesdevelopment/sonar/issues'><hover:show_text:'(Klicken um GitHub zu öffnen)'>oder erstelle ein neues Issue auf GitHub.
+      - <white><click:open_url:'https://github.com/NothingFlare/Full-GrimAC'><hover:show_text:'(Klicken um Discord zu öffnen)'>Öffne ein Ticket auf Discord </hover></click><click:open_url:'https://github.com/jonesdevelopment/sonar/issues'><hover:show_text:'(Klicken um GitHub zu öffnen)'>oder erstelle ein neues Issue auf GitHub.
       - ''
     # Formatierung der Liste der Unterbefehle, die angezeigt wird, wenn der Hauptbefehl ausgeführt wird
     subcommands: '<suggest-subcommand><hover:show_text:''<gray>Nur Spieler: </gray><only-players><br><gray>Erfordert Konsole: </gray><only-console><br><gray>Berechtigung: </gray><white><permission><br><gray>Aliase: </gray><aliases>''><dark_aqua> ▪ <gray>/sonar <subcommand>  <white><description></hover></suggest-subcommand>'
@@ -283,13 +283,13 @@ verbose:
 # Übersetzungen für Sonars Benachrichtigungsnachrichten bei Angriffen
 notifications:
   # Layout für Sonars Angriffsbenachrichtigungs-Titel
-  title: <yellow><b>Sonar<reset>
+  title: <yellow><b>Grim<reset>
   # Layout für Sonars Angriffsbenachrichtigungs-Untertitel
   subtitle: <gray>Ein Bot-Angriff wurde erkannt
   # Layout für Sonars Angriffsbenachrichtigung im Chat
   chat:
     - ''
-    - <yellow><b>Sonar<reset>
+    - <yellow><b>Grim<reset>
     - ''
     - <gray>Ein Bot-Angriff wurde erkannt.
     - ' <dark_aqua>▪ <gray>Anmeldungen pro Sekunde: <white><logins-per-second>'

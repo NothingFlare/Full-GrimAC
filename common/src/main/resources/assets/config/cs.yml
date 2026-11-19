@@ -8,7 +8,7 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# Potřebujete pomoc nebo máte otázky? https://sonar.top/discord
+# Potřebujete pomoc nebo máte otázky? https://github.com/NothingFlare/Full-GrimAC
 # Zdrojový kód: https://github.com/jonesdevelopment/sonar
 # Dokumentace: https://docs.jonesdev.xyz/administration/configuring-sonar
 # Copyright Jones Development and Sonar Contributors, licencováno pod GPL-3.0
@@ -185,7 +185,7 @@ verification:
   # Sonar ukládá do mezipaměti většinu paketů, které odesílá klientovi, včetně paketu LoginSuccess.
   # Které uživatelské jméno má Sonar použít pro paket LoginSuccess?
   # Uživatelské jméno nebude pro hráče viditelné bez úpravy klienta
-  cached-username: "Sonar"
+  cached-username: "Grim"
   # Měl by Sonar posílat nové verifikace?
   log-connections: true
   # Měl by Sonar posílat nové verifikace při útoku?

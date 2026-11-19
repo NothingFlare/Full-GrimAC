@@ -8,7 +8,7 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# Potrzebujesz pomocy lub masz pytania? https://sonar.top/discord
+# Potrzebujesz pomocy lub masz pytania? https://github.com/NothingFlare/Full-GrimAC
 # Source code: https://github.com/jonesdevelopment/sonar
 # Dokumentacja: https://docs.jonesdev.xyz/administration/configuring-sonar
 # Copyright Jones Development and Sonar Contributors, na licencji GPL-3.0
@@ -184,7 +184,7 @@ verification:
   # Sonar buforuje większość pakietów, które wysyła do klienta, w tym pakiet LoginSuccess.
   # Jakiej nazwy użytkownika powinien używać Sonar dla pakietu LoginSuccess?
   # Nazwa użytkownika nie będzie widoczna dla gracza bez modyfikacji klienta
-  cached-username: "Sonar"
+  cached-username: "Grim"
   # Czy Sonar powinien rejestrować połączenia nowych graczy?
   log-connections: true
   # Czy Sonar powinien rejestrować nowe próby połączenia podczas ataku?

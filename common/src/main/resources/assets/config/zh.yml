@@ -8,7 +8,7 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# 需要帮助吗? https://sonar.top/discord
+# 需要帮助吗? https://github.com/NothingFlare/Full-GrimAC
 # 源代码: https://github.com/jonesdevelopment/sonar
 # 文件: https://docs.jonesdev.xyz/administration/configuring-sonar
 # Copyright Jones Development and Sonar Contributors, 以 GPL-3.0 许可证分发
@@ -180,7 +180,7 @@ verification:
   # Sonar 缓存它发送到客户端的大部分数据包, 包括 LoginSuccess 数据包.
   # Sonar 应该使用哪个用户名来接收 LoginSuccess 数据包?
   # 如果不修改客户端, 用户名将不会对玩家可见
-  cached-username: "Sonar"
+  cached-username: "Grim"
   # 当 Sonar 尝试验证玩家时 是否在控制台中打印有关玩家的信息?
   log-connections: true
   # Sonar 是否应该在攻击期间内打印日志?

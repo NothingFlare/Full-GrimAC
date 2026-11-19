@@ -8,7 +8,7 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# Нужна помощь или есть вопросы? https://sonar.top/discord
+# Нужна помощь или есть вопросы? https://github.com/NothingFlare/Full-GrimAC
 # Исходный код: https://github.com/jonesdevelopment/sonar
 # Документация: https://docs.jonesdev.xyz/administration/configuring-sonar
 # Copyright Jones Development and Sonar Contributors, под лицензией GPL-3.0
@@ -185,7 +185,7 @@ verification:
   # Sonar кэширует большинство пакетов, которые он отправляет клиенту, включая пакет LoginSuccess.
   # Какое имя пользователя должен использовать Sonar для пакета LoginSuccess?
   # Имя пользователя не будет видно игроку без модификации клиента
-  cached-username: "Sonar"
+  cached-username: "Grim"
   # Должен ли Sonar регистрировать новые попытки проверки?
   log-connections: true
   # Должен ли Sonar регистрировать новые попытки проверки во время атак?

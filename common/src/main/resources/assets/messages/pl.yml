@@ -8,18 +8,18 @@
 # |  $$$$$$/|  $$$$$$/| $$  | $$|  $$$$$$$| $$
 #  \______/  \______/ |__/  |__/ \_______/|__/
 #
-# Potrzebujesz pomocy lub masz pytania? https://sonar.top/discord
+# Potrzebujesz pomocy lub masz pytania? https://github.com/NothingFlare/Full-GrimAC
 # Source code: https://github.com/jonesdevelopment/sonar
 # Copyright Jones Development and Sonar Contributors, na licencji GPL-3.0
 #
 
 # Placeholder for every '<prefix>' in this configuration file
-prefix: <b><yellow>Sonar</b> <gray>» <white>
+prefix: <b><yellow>Grim</b> <gray>» <white>
 # Placeholder for every '<support-url>' in this configuration file
-support-url: https://sonar.top/discord/
+support-url: https://github.com/NothingFlare/Full-GrimAC
 # Placeholder for every '<header>' in this configuration file
 header:
-  - <b><yellow>Sonar</b><reset>
+  - <b><yellow>Grim</b><reset>
   - ''
 # Placeholder for every '<footer>' in this configuration file
 footer:
@@ -54,7 +54,7 @@ commands:
         Jones Development and Sonar Contributors</click>
       - ''
       - <gray>Potrzebujesz pomocy lub masz pytania?
-      - <white><click:open_url:'https://sonar.top/discord/'><hover:show_text:'(Kliknij aby otworzyć Discord)'>Otwórz zgłoszenie na Discordzie </hover></click><click:open_url:'https://github.com/jonesdevelopment/sonar/issues'><hover:show_text:'(Kliknij aby otworzyć GitHub)'>lub otwórz nowe zgłoszenie w serwisie GitHub.
+      - <white><click:open_url:'https://github.com/NothingFlare/Full-GrimAC'><hover:show_text:'(Kliknij aby otworzyć Discord)'>Otwórz zgłoszenie na Discordzie </hover></click><click:open_url:'https://github.com/jonesdevelopment/sonar/issues'><hover:show_text:'(Kliknij aby otworzyć GitHub)'>lub otwórz nowe zgłoszenie w serwisie GitHub.
       - ''
     # Formatting of the list of subcommands shown when running the main command
     subcommands: '<suggest-subcommand><hover:show_text:''<gray>Only players: </gray><only-players><br><gray>Require
@@ -289,13 +289,13 @@ verbose:
 # Translations for Sonar's attack notification messages
 notifications:
   # Layout for Sonar's attack notification title
-  title: <yellow><b>Sonar<reset>
+  title: <yellow><b>Grim<reset>
   # Layout for Sonar's attack notification subtitle
   subtitle: <gray>Wykryto atak botów
   # Layout for Sonar's attack notification in chat
   chat:
     - ''
-    - <yellow><b>Sonar<reset>
+    - <yellow><b>Grim<reset>
     - ''
     - <gray>Wykryto atak botów.
     - ' <dark_aqua>▪ <gray>Logowania na sekundę: <white><logins-per-second>'

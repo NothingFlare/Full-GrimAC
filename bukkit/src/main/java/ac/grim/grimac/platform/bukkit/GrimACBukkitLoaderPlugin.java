@@ -146,6 +146,7 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
         Bukkit.getPluginManager().registerEvents(guiManager, this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.RedstoneOptimizer(), this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.TNTOptimizer(), this);
+        Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.listener.ItemDesyncFixListener(), this);
 
         // Initialize Sonar AntiBot System
         try {
