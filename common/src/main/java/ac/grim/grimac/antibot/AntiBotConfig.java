@@ -41,10 +41,10 @@ public class AntiBotConfig {
     private double inGameDurationSeconds = 2.5;
     private long verificationCooldownSeconds = 3600; // Verification cooldown (default: 1 hour = 3600 seconds)
     private String verificationWelcomeMessage = "&e&lGrimAC &8» &aВы проходите верификацию. Пожалуйста, не двигайтесь, это автоматический процесс.";
-    private String verificationActionbarMessage = "&eПроверка на бота: &fОсталось &a{time} сек.";
-    private String verificationTitle = "&e&lВЕРИФИКАЦИЯ";
-    private String verificationSubtitle = "&7Пожалуйста, подождите...";
-    private String verificationSuccessMessage = "&e&lGrimAC &8» &aВы успешно прошли верификацию! Приятной игры.";
+    private String verificationActionbarMessage = "";
+    private String verificationTitle = "";
+    private String verificationSubtitle = "";
+    private String verificationSuccessMessage = "";
     private String verificationFailedMessage = "&cВы не прошли автоматическую проверку на бота.";
     private long reconnectMinDelayMs = 2000;
     private long reconnectWindowMs = 60000;
@@ -228,10 +228,10 @@ public class AntiBotConfig {
                     "  in-game-duration-seconds: 2.5 # Длительность внутриигровой проверки\n" +
                     "  cooldown-seconds: 3600 # Кулдаун проверки (по умолчанию 1 час = 3600 сек). 0 = бессрочно.\n" +
                     "  welcome-message: \"&e&lGrimAC &8» &aВы проходите верификацию. Пожалуйста, не двигайтесь, это автоматический процесс.\"\n" +
-                    "  actionbar-message: \"&eПроверка на бота: &fОсталось &a{time} сек.\"\n" +
-                    "  title-message: \"&e&lВЕРИФИКАЦИЯ\"\n" +
-                    "  subtitle-message: \"&7Пожалуйста, подождите...\"\n" +
-                    "  success-message: \"&e&lGrimAC &8» &aВы успешно прошли верификацию! Приятной игры.\"\n" +
+                    "  actionbar-message: \"\"\n" +
+                    "  title-message: \"\"\n" +
+                    "  subtitle-message: \"\"\n" +
+                    "  success-message: \"\"\n" +
                     "  failed-message: \"&cВы не прошли автоматическую проверку на бота.\"\n" +
                     "  reconnect-min-delay-ms: 2000 # Минимальная задержка перед переподключением\n" +
                     "  reconnect-window-ms: 60000 # Окно ожидания переподключения\n" +

@@ -141,16 +141,13 @@ public class BukkitAntiBotListener implements Listener {
                 hidePlayerFromAll(player);
             }
 
-            // Send initial Sonar notification
+            // Send Sonar welcome notification in chat
             String welcome = manager.getConfig().getVerificationWelcomeMessage();
             if (welcome != null && !welcome.isEmpty()) {
                 player.sendMessage(ChatColor.translateAlternateColorCodes('&', welcome));
             }
 
-            sendTitleSafely(player, manager.getConfig().getVerificationTitle(), manager.getConfig().getVerificationSubtitle(), 5, 60, 5);
-            playSoundSafely(player, SOUND_PLING, 1.0f, 1.0f);
-
-            LogUtil.info("[Antibot] " + player.getName() + " (" + ip + ") начал внутриигровую верификацию Sonar (выделенный мир: " +
+            LogUtil.info("[Antibot] " + player.getName() + " (" + ip + ") начал верификацию Sonar (выделенный мир: " +
                     (manager.getConfig().isDedicatedWorldEnabled() ? manager.getConfig().getDedicatedWorldName() : "limbo") + ")...");
         } else if (manager.checkAndClearWelcomePending(player.getUniqueId())) {
             // Reconnect verification passed earlier
@@ -362,19 +359,6 @@ public class BukkitAntiBotListener implements Listener {
 
             session.incrementTick();
 
-            // Update action bar countdown
-            double remaining = session.getSecondsRemaining();
-            String barFormat = manager.getConfig().getVerificationActionbarMessage();
-            if (barFormat != null && !barFormat.isEmpty()) {
-                String bar = barFormat.replace("{time}", String.format(Locale.ROOT, "%.1f", remaining));
-                sendActionBarSafely(player, bar);
-            }
-
-            // Keep title active
-            if (session.getTicksElapsed() % 20 == 0) {
-                sendTitleSafely(player, manager.getConfig().getVerificationTitle(), manager.getConfig().getVerificationSubtitle(), 0, 30, 5);
-            }
-
             // Check completion
             if (session.getTicksElapsed() >= session.getTotalTicks()) {
                 session.setCompleted(true);
@@ -391,15 +375,13 @@ public class BukkitAntiBotListener implements Listener {
                 // Restore visibility to other players
                 showPlayerToAll(player);
 
-                sendTitleSafely(player, "§a§lПРОВЕРКА ПРОЙДЕНА!", "§7Приятной игры на сервере!", 5, 40, 10);
-                playSoundSafely(player, SOUND_SUCCESS, 1.0f, 1.2f);
-
+                // Send success message only if configured (Sonar default is silent transition)
                 String success = manager.getConfig().getVerificationSuccessMessage();
                 if (success != null && !success.isEmpty()) {
                     player.sendMessage(ChatColor.translateAlternateColorCodes('&', success));
                 }
 
-                LogUtil.info(String.format("[Antibot] %s успешно прошел проверки Sonar (гравитация, хитбокс, таймер %.1f сек).",
+                LogUtil.info(String.format("[Antibot] %s успешно прошел проверки Sonar (гравитация, хитбокс, время %.1f сек).",
                         session.getUsername(), session.getTotalTicks() / 20.0));
             }
         }
