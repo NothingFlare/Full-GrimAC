@@ -66,6 +66,16 @@ public class AntiBotConfig {
     private boolean checkHitboxCollision = true;
     private boolean checkMovementLock = true;
     private boolean hidePlayersDuringVerification = true;
+    private boolean checkEntityAttack = true; // Требовать удар по проверочной сущности
+    private boolean checkClientSettings = true; // Проверка настроек клиента (язык, прорисовка)
+    private int minViewDistance = 2;
+
+    // Map Captcha Settings
+    private boolean captchaEnabled = true;
+    private String captchaTiming = "ALWAYS"; // ALWAYS, DURING_ATTACK, OFF
+    private int captchaCodeLength = 5;
+    private int captchaMaxTries = 3;
+    private int captchaMaxDurationSeconds = 30;
 
     // Alts detection
     private boolean altsEnabled = true;
@@ -167,6 +177,18 @@ public class AntiBotConfig {
                 checkHitboxCollision = getBoolean(checks, "hitbox-collision", checkHitboxCollision);
                 checkMovementLock = getBoolean(checks, "movement-lock", checkMovementLock);
                 hidePlayersDuringVerification = getBoolean(checks, "hide-players", hidePlayersDuringVerification);
+                checkEntityAttack = getBoolean(checks, "entity-attack", checkEntityAttack);
+                checkClientSettings = getBoolean(checks, "client-settings", checkClientSettings);
+                minViewDistance = getInt(checks, "min-view-distance", minViewDistance);
+            }
+
+            Map<String, Object> captcha = getSection(verification, "captcha");
+            if (captcha != null) {
+                captchaEnabled = getBoolean(captcha, "enabled", captchaEnabled);
+                captchaTiming = getString(captcha, "timing", captchaTiming).toUpperCase(Locale.ROOT);
+                captchaCodeLength = getInt(captcha, "code-length", captchaCodeLength);
+                captchaMaxTries = getInt(captcha, "max-tries", captchaMaxTries);
+                captchaMaxDurationSeconds = getInt(captcha, "max-duration-seconds", captchaMaxDurationSeconds);
             }
 
             Object protocols = verification.get("blacklisted-protocols");
@@ -247,6 +269,15 @@ public class AntiBotConfig {
                     "    hitbox-collision: true # Проверка коллизии хитбоксов блоков при приземлении\n" +
                     "    movement-lock: true # Блокировка движения вне платформы\n" +
                     "    hide-players: true # Скрывать проверяемых игроков от остальных\n" +
+                    "    entity-attack: true # Требовать удар по проверочной сущности (проверка рук и ЛКМ)\n" +
+                    "    client-settings: true # Проверка стандартных настроек клиента (язык, прорисовка)\n" +
+                    "    min-view-distance: 2\n" +
+                    "  captcha:\n" +
+                    "    enabled: true # Капча на карте\n" +
+                    "    timing: ALWAYS # ALWAYS, DURING_ATTACK, OFF\n" +
+                    "    code-length: 5 # Длина кода капчи\n" +
+                    "    max-tries: 3 # Количество попыток\n" +
+                    "    max-duration-seconds: 30 # Время на ввод кода\n" +
                     "  name-validation:\n" +
                     "    enabled: true\n" +
                     "    regex: \"^[a-zA-Z0-9_]{3,16}$\"\n" +

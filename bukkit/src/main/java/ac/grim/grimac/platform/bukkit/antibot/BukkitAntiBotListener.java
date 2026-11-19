@@ -9,6 +9,7 @@ package ac.grim.grimac.platform.bukkit.antibot;
 import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.antibot.AntiBotConfig;
 import ac.grim.grimac.antibot.AntiBotManager;
+import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.LogUtil;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.protocol.player.User;
@@ -19,6 +20,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.World;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -28,11 +30,13 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.*;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.net.InetAddress;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -42,6 +46,7 @@ public class BukkitAntiBotListener implements Listener {
 
     private static final Sound SOUND_PLING = getSafeSound("BLOCK_NOTE_BLOCK_PLING", "NOTE_PLING");
     private static final Sound SOUND_SUCCESS = getSafeSound("ENTITY_PLAYER_LEVELUP", "LEVEL_UP");
+    private static final String CAPTCHA_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
@@ -117,38 +122,95 @@ public class BukkitAntiBotListener implements Listener {
 
         // Check if player requires Sonar In-Game Verification
         if (manager.shouldVerifyInGame(player.getName(), ip)) {
-            int durationTicks = (int) Math.round(manager.getConfig().getInGameDurationSeconds() * 20.0);
-            Location originalLoc = player.getLocation().clone();
+            AntiBotConfig config = manager.getConfig();
 
+            int durationTicks = (int) Math.round(config.getInGameDurationSeconds() * 20.0);
+            if (config.isCaptchaEnabled()) {
+                durationTicks = Math.max(durationTicks, (int) Math.round(config.getCaptchaMaxDurationSeconds() * 20.0));
+            }
+            if (config.isCheckEntityAttack()) {
+                durationTicks = Math.max(durationTicks, 300); // at least 15s for interactive checks
+            }
+
+            Location originalLoc = player.getLocation().clone();
             PlayerVerificationSession session = new PlayerVerificationSession(player, ip, durationTicks, originalLoc);
             activeSessions.put(player.getUniqueId(), session);
 
-            // Teleport to dedicated Sonar verification world if enabled
-            if (manager.getConfig().isDedicatedWorldEnabled() && VerificationWorldManager.getInstance() != null) {
-                Location spawn = VerificationWorldManager.getInstance().getSpawnLocation(manager.getConfig().getDedicatedWorldSpawnOffset());
+            // 1. Stash and clear inventory so player has completely empty inventory
+            session.stashInventory();
+
+            // 2. Teleport to dedicated Sonar verification world if enabled
+            Location targetPlatformLoc = null;
+            if (config.isDedicatedWorldEnabled() && VerificationWorldManager.getInstance() != null) {
+                Location spawn = VerificationWorldManager.getInstance().getSpawnLocation(config.getDedicatedWorldSpawnOffset());
                 if (spawn != null) {
                     session.setVerificationLocation(spawn);
                     session.setPlatformY(VerificationWorldManager.PLATFORM_Y);
                     session.setBlockHeight(VerificationWorldManager.BLOCK_HEIGHT);
+                    targetPlatformLoc = spawn;
                     teleportSafely(player, spawn);
                 }
             } else {
                 session.setVerificationLocation(originalLoc);
+                targetPlatformLoc = originalLoc;
             }
 
-            // Hide from all online players if configured
-            if (manager.getConfig().isHidePlayersDuringVerification()) {
+            // 3. Hide from all online players if configured
+            if (config.isHidePlayersDuringVerification()) {
                 hidePlayerFromAll(player);
             }
 
-            // Send Sonar welcome notification in chat
-            String welcome = manager.getConfig().getVerificationWelcomeMessage();
+            // 4. Send Sonar welcome notification in chat
+            String welcome = config.getVerificationWelcomeMessage();
             if (welcome != null && !welcome.isEmpty()) {
                 player.sendMessage(ChatColor.translateAlternateColorCodes('&', welcome));
             }
 
-            LogUtil.info("[Antibot] " + player.getName() + " (" + ip + ") начал верификацию Sonar (выделенный мир: " +
-                    (manager.getConfig().isDedicatedWorldEnabled() ? manager.getConfig().getDedicatedWorldName() : "limbo") + ")...");
+            // 5. Map Captcha check setup
+            if (config.isCaptchaEnabled() && VerificationWorldManager.getInstance() != null) {
+                session.setCaptchaRequired(true);
+                session.setCaptchaTriesLeft(config.getCaptchaMaxTries());
+                String code = generateRandomCode(config.getCaptchaCodeLength());
+                session.setCaptchaCode(code);
+
+                ItemStack mapItem = VerificationWorldManager.getInstance().createCaptchaMap(player, code);
+                try {
+                    player.getInventory().setItemInHand(mapItem);
+                } catch (Throwable t) {
+                    try {
+                        player.getInventory().setItem(0, mapItem);
+                    } catch (Throwable ignored) {}
+                }
+
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                        "&e&lGrimAC &8» &fВведите код с карты в чат. &7(Осталось попыток: " + session.getCaptchaTriesLeft() + ")"));
+            }
+
+            // 6. Entity Attack / Arm Swing check setup
+            if (config.isCheckEntityAttack() && VerificationWorldManager.getInstance() != null && targetPlatformLoc != null) {
+                session.setEntityHitRequired(true);
+
+                Location standLoc = new Location(
+                        targetPlatformLoc.getWorld(),
+                        VerificationWorldManager.PLATFORM_X,
+                        VerificationWorldManager.PLATFORM_Y + VerificationWorldManager.BLOCK_HEIGHT,
+                        VerificationWorldManager.PLATFORM_Z + 1.8,
+                        180f,
+                        0f
+                );
+                Entity stand = VerificationWorldManager.getInstance().spawnTargetEntity(standLoc);
+                if (stand != null) {
+                    session.setTargetEntityId(stand.getUniqueId());
+                }
+
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                        "&e&lGrimAC &8» &fУдарьте манекен перед собой &e(ЛКМ)&f для подтверждения."));
+            }
+
+            LogUtil.info("[Antibot] " + player.getName() + " (" + ip + ") начал верификацию Sonar (мир: " +
+                    (config.isDedicatedWorldEnabled() ? config.getDedicatedWorldName() : "limbo") +
+                    ", капча: " + config.isCaptchaEnabled() +
+                    ", удар цели: " + config.isCheckEntityAttack() + ")...");
         } else if (manager.checkAndClearWelcomePending(player.getUniqueId())) {
             // Reconnect verification passed earlier
             String successMsg = manager.getConfig().getVerificationSuccessMessage();
@@ -166,6 +228,14 @@ public class BukkitAntiBotListener implements Listener {
 
         PlayerVerificationSession session = activeSessions.remove(uuid);
         if (session != null) {
+            // Remove spawned target entity if present
+            if (session.getTargetEntityId() != null && VerificationWorldManager.getInstance() != null) {
+                VerificationWorldManager.getInstance().removeTargetEntity(session.getTargetEntityId());
+            }
+
+            // Safely restore player inventory so items are saved to player.dat
+            session.restoreInventory();
+
             showPlayerToAll(player);
             if (session.getOriginalLocation() != null) {
                 try {
@@ -262,6 +332,14 @@ public class BukkitAntiBotListener implements Listener {
         session.setFailed(true, reason);
         activeSessions.remove(session.getUuid());
 
+        // Remove target entity
+        if (session.getTargetEntityId() != null && VerificationWorldManager.getInstance() != null) {
+            VerificationWorldManager.getInstance().removeTargetEntity(session.getTargetEntityId());
+        }
+
+        // Restore inventory before kicking so data is intact
+        session.restoreInventory();
+
         Player player = session.getPlayer();
         if (player == null || !player.isOnline()) return;
 
@@ -271,16 +349,29 @@ public class BukkitAntiBotListener implements Listener {
             manager.getAttackTracker().onBotBlocked();
         }
 
-        LogUtil.warn(String.format("[Antibot] %s (%s) провалил проверку Sonar: %s",
+        LogUtil.warn(String.format("[Antibot] %s (%s) провалил проверку: %s",
                 session.getUsername(), session.getIp(), reason));
 
-        showPlayerToAll(player);
-        if (session.getOriginalLocation() != null) {
-            teleportSafely(player, session.getOriginalLocation());
-        }
+        Runnable kickAction = () -> {
+            showPlayerToAll(player);
+            if (session.getOriginalLocation() != null) {
+                teleportSafely(player, session.getOriginalLocation());
+            }
+            String failedMsg = manager != null ? manager.getConfig().getVerificationFailedMessage() : "&cВы не прошли проверку на бота.";
+            player.kickPlayer(ChatColor.translateAlternateColorCodes('&', failedMsg));
+        };
 
-        String failedMsg = manager != null ? manager.getConfig().getVerificationFailedMessage() : "&cВы не прошли проверку на бота.";
-        player.kickPlayer(ChatColor.translateAlternateColorCodes('&', failedMsg));
+        if (Bukkit.isPrimaryThread()) {
+            kickAction.run();
+        } else {
+            Plugin plugin = GrimAPI.INSTANCE != null && GrimAPI.INSTANCE.getGrimPlugin() instanceof Plugin
+                    ? (Plugin) GrimAPI.INSTANCE.getGrimPlugin() : null;
+            if (plugin != null) {
+                Bukkit.getScheduler().runTask(plugin, kickAction);
+            } else {
+                kickAction.run();
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
@@ -305,6 +396,20 @@ public class BukkitAntiBotListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onInteractEntity(PlayerInteractEntityEvent event) {
+        if (activeSessions.containsKey(event.getPlayer().getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onArmorStandManipulate(PlayerArmorStandManipulateEvent event) {
+        if (activeSessions.containsKey(event.getPlayer().getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
         if (activeSessions.containsKey(event.getPlayer().getUniqueId())) {
             event.setCancelled(true);
@@ -318,18 +423,74 @@ public class BukkitAntiBotListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onDamage(EntityDamageByEntityEvent event) {
-        if (event.getDamager() instanceof Player damager && activeSessions.containsKey(damager.getUniqueId())) {
-            event.setCancelled(true);
+        if (event.getDamager() instanceof Player damager) {
+            PlayerVerificationSession session = activeSessions.get(damager.getUniqueId());
+            if (session != null) {
+                event.setCancelled(true);
+
+                // Handle entity attack check
+                if (session.isEntityHitRequired() && !session.isEntityHitValidated()) {
+                    if (session.getTargetEntityId() != null &&
+                            session.getTargetEntityId().equals(event.getEntity().getUniqueId())) {
+                        session.setEntityHitValidated(true);
+                        event.getEntity().remove();
+                        session.setTargetEntityId(null);
+                        damager.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aУдар засчитан!"));
+                        playSoundSafely(damager, SOUND_SUCCESS, 1.0f, 1.2f);
+                    }
+                }
+            }
         }
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onArmAnimation(PlayerAnimationEvent event) {
+        if (event.getAnimationType() == PlayerAnimationType.ARM_SWING) {
+            PlayerVerificationSession session = activeSessions.get(event.getPlayer().getUniqueId());
+            if (session != null) {
+                session.setArmSwung(true);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onChat(AsyncPlayerChatEvent event) {
-        if (activeSessions.containsKey(event.getPlayer().getUniqueId())) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage(ChatColor.RED + "Пожалуйста, дождитесь завершения проверки перед отправкой сообщений.");
+        Player player = event.getPlayer();
+        PlayerVerificationSession session = activeSessions.get(player.getUniqueId());
+        if (session == null) return;
+
+        event.setCancelled(true);
+
+        if (session.isCaptchaRequired() && !session.isCaptchaValidated()) {
+            String msg = event.getMessage().trim();
+            String code = session.getCaptchaCode();
+            if (code != null && msg.equalsIgnoreCase(code)) {
+                session.setCaptchaValidated(true);
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aКод подтвержден!"));
+                playSoundSafely(player, SOUND_SUCCESS, 1.0f, 1.2f);
+
+                // Clear map from hand
+                Plugin plugin = GrimAPI.INSTANCE != null && GrimAPI.INSTANCE.getGrimPlugin() instanceof Plugin
+                        ? (Plugin) GrimAPI.INSTANCE.getGrimPlugin() : null;
+                if (plugin != null) {
+                    Bukkit.getScheduler().runTask(plugin, () -> player.getInventory().clear());
+                } else {
+                    player.getInventory().clear();
+                }
+            } else {
+                session.decrementCaptchaTries();
+                if (session.getCaptchaTriesLeft() <= 0) {
+                    failSession(session, "Превышено количество попыток ввода капчи");
+                } else {
+                    player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            "&cНеверный код! Осталось попыток: " + session.getCaptchaTriesLeft()));
+                    playSoundSafely(player, SOUND_PLING, 1.0f, 0.5f);
+                }
+            }
+        } else {
+            player.sendMessage(ChatColor.RED + "Пожалуйста, дождитесь завершения проверки перед отправкой сообщений.");
         }
     }
 
@@ -349,20 +510,47 @@ public class BukkitAntiBotListener implements Listener {
 
         AntiBotManager manager = AntiBotManager.getInstance();
         if (manager == null) return;
+        AntiBotConfig config = manager.getConfig();
 
         for (PlayerVerificationSession session : activeSessions.values()) {
             Player player = session.getPlayer();
             if (player == null || !player.isOnline()) {
+                if (session.getTargetEntityId() != null && VerificationWorldManager.getInstance() != null) {
+                    VerificationWorldManager.getInstance().removeTargetEntity(session.getTargetEntityId());
+                }
+                session.restoreInventory();
                 activeSessions.remove(session.getUuid());
                 continue;
             }
 
             session.incrementTick();
 
-            // Check completion
-            if (session.getTicksElapsed() >= session.getTotalTicks()) {
+            // At tick 10: validate client settings (gives client time to send ClientInformation packet)
+            if (session.getTicksElapsed() == 10 && config.isCheckClientSettings() && !session.isClientSettingsValidated()) {
+                if (!validateClientSettings(player, config, session)) {
+                    continue;
+                }
+            }
+
+            // Check if all active verification conditions are satisfied
+            boolean gravityOk = !config.isCheckGravity() || session.isGravityValidated();
+            boolean hitboxOk = !config.isCheckHitboxCollision() || session.isHitboxValidated();
+            boolean captchaOk = !session.isCaptchaRequired() || session.isCaptchaValidated();
+            boolean entityOk = !session.isEntityHitRequired() || session.isEntityHitValidated();
+            boolean settingsOk = !config.isCheckClientSettings() || session.isClientSettingsValidated();
+            boolean minTimeOk = session.getTicksElapsed() >= 20;
+
+            if (gravityOk && hitboxOk && captchaOk && entityOk && settingsOk && minTimeOk) {
                 session.setCompleted(true);
                 activeSessions.remove(session.getUuid());
+
+                // Remove target entity if present
+                if (session.getTargetEntityId() != null && VerificationWorldManager.getInstance() != null) {
+                    VerificationWorldManager.getInstance().removeTargetEntity(session.getTargetEntityId());
+                }
+
+                // Restore original inventory completely
+                session.restoreInventory();
 
                 manager.getDatabase().addVerified(session.getUsername(), session.getIp());
                 manager.getAttackTracker().onVerifiedLogin();
@@ -376,15 +564,97 @@ public class BukkitAntiBotListener implements Listener {
                 showPlayerToAll(player);
 
                 // Send success message only if configured (Sonar default is silent transition)
-                String success = manager.getConfig().getVerificationSuccessMessage();
+                String success = config.getVerificationSuccessMessage();
                 if (success != null && !success.isEmpty()) {
                     player.sendMessage(ChatColor.translateAlternateColorCodes('&', success));
                 }
 
-                LogUtil.info(String.format("[Antibot] %s успешно прошел проверки Sonar (гравитация, хитбокс, время %.1f сек).",
-                        session.getUsername(), session.getTotalTicks() / 20.0));
+                LogUtil.info(String.format("[Antibot] %s успешно прошел проверки (гравитация=%s, хитбокс=%s, капча=%s, манекен=%s, настройки=%s, %.1f сек).",
+                        session.getUsername(),
+                        session.isGravityValidated(),
+                        session.isHitboxValidated(),
+                        session.isCaptchaValidated(),
+                        session.isEntityHitValidated(),
+                        session.isClientSettingsValidated(),
+                        session.getTicksElapsed() / 20.0));
+                continue;
+            }
+
+            // Check timeout
+            if (session.getTicksElapsed() >= session.getTotalTicks()) {
+                if (session.isCaptchaRequired() && !session.isCaptchaValidated()) {
+                    failSession(session, "Истекло время на ввод капчи с карты");
+                } else if (session.isEntityHitRequired() && !session.isEntityHitValidated()) {
+                    failSession(session, "Истекло время на выполнение удара по цели");
+                } else if (config.isCheckGravity() && !session.isGravityValidated()) {
+                    failSession(session, "Истекло время на проверку физики гравитации Sonar");
+                } else if (config.isCheckHitboxCollision() && !session.isHitboxValidated()) {
+                    failSession(session, "Истекло время на проверку хитбокса Sonar");
+                } else {
+                    failSession(session, "Истекло время прохождения проверки");
+                }
             }
         }
+    }
+
+    private boolean validateClientSettings(Player player, AntiBotConfig config, PlayerVerificationSession session) {
+        if (!config.isCheckClientSettings()) {
+            session.setClientSettingsValidated(true);
+            return true;
+        }
+
+        // 1. View distance check
+        int viewDist = -1;
+        try {
+            viewDist = player.getClientViewDistance();
+        } catch (Throwable ignored) {}
+
+        if (viewDist > 0 && viewDist < config.getMinViewDistance()) {
+            failSession(session, "Некорректная дальность прорисовки (viewDistance=" + viewDist + " < " + config.getMinViewDistance() + ")");
+            return false;
+        }
+
+        // 2. Client Locale / Language check
+        String locale = null;
+        try {
+            locale = player.getLocale();
+        } catch (Throwable ignored) {}
+
+        if (locale != null && !locale.isEmpty()) {
+            String clean = locale.trim().toLowerCase(Locale.ROOT);
+            if (clean.length() < 2 || clean.length() > 16 || !clean.matches("^[a-z]{2,4}([_-][a-z0-9]{2,4})?$")) {
+                failSession(session, "Некорректная локаль клиента (locale=" + locale + ")");
+                return false;
+            }
+        }
+
+        // 3. Client Brand check
+        if (config.isClientBrandEnabled()) {
+            GrimPlayer grimPlayer = GrimAPI.INSTANCE != null && GrimAPI.INSTANCE.getPlayerDataManager() != null
+                    ? GrimAPI.INSTANCE.getPlayerDataManager().getPlayer(player.getUniqueId()) : null;
+            if (grimPlayer != null) {
+                String brand = grimPlayer.getBrand();
+                if (brand != null && !brand.isEmpty()) {
+                    if (brand.length() > config.getClientBrandMaxLength() || !brand.matches(config.getClientBrandRegex())) {
+                        failSession(session, "Недопустимый клиентский бренд (brand=" + brand + ")");
+                        return false;
+                    }
+                }
+            }
+        }
+
+        session.setClientSettingsValidated(true);
+        return true;
+    }
+
+    private static String generateRandomCode(int length) {
+        int len = Math.max(3, Math.min(10, length));
+        Random random = new Random();
+        StringBuilder sb = new StringBuilder(len);
+        for (int i = 0; i < len; i++) {
+            sb.append(CAPTCHA_CHARS.charAt(random.nextInt(CAPTCHA_CHARS.length())));
+        }
+        return sb.toString();
     }
 
     private static void teleportSafely(Player player, Location target) {
