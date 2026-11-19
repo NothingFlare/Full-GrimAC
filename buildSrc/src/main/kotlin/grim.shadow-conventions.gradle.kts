@@ -17,6 +17,7 @@ tasks.named<ShadowJar>("shadowJar") {
     }
     archiveFileName = "${rootProject.name}-${project.name}-${rootProject.version}.jar"
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude("META-INF/versions/**")
 
     if (BuildConfig.relocate) {
         if (BuildConfig.shadePE) {

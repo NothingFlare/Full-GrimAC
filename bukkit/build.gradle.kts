@@ -310,10 +310,11 @@ tasks {
     shadowJar {
         archiveFileName.set("FullGrimAC-2.0.jar")
         exclude("META-INF/services/javax.annotation.processing.Processor")
+        exclude("META-INF/versions/**")
 
         relocate("org.bstats", "xyz.jonesdev.sonar.libs.bstats")
         relocate("com.alessiodp.libby", "xyz.jonesdev.sonar.libs.libby")
-        relocate("com.simpleyaml", "xyz.jonesdev.sonar.libs.yaml")
+        relocate("org.simpleyaml", "xyz.jonesdev.sonar.libs.simpleyaml")
         relocate("com.j256.ormlite", "xyz.jonesdev.sonar.libs.ormlite")
         relocate("com.github.benmanes.caffeine", "xyz.jonesdev.sonar.libs.caffeine")
         relocate("com.jhlabs", "xyz.jonesdev.sonar.libs.jhlabs")

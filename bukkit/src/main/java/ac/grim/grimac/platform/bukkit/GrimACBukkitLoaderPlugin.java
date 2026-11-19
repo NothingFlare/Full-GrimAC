@@ -166,6 +166,7 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
                 getLogger().warning("Error shutting down Sonar AntiBot: " + t.getMessage());
             }
         }
+        xyz.jonesdev.sonar.bukkit.antibot.BukkitInjector.uninject();
         GrimAPI.INSTANCE.stop();
     }
 

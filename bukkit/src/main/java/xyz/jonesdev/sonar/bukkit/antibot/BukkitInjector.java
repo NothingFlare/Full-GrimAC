@@ -190,6 +190,18 @@ public class BukkitInjector {
     return Class.forName(OBC_PACKAGE + clazz);
   }
 
+  private final List<Runnable> UNINJECT_TASKS = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+  public void uninject() {
+    for (final Runnable task : UNINJECT_TASKS) {
+      try {
+        task.run();
+      } catch (Throwable ignored) {
+      }
+    }
+    UNINJECT_TASKS.clear();
+  }
+
   @SuppressWarnings("unchecked")
   public void inject() {
     try {
@@ -233,6 +245,14 @@ public class BukkitInjector {
           final Field childHandlerField = bootstrap.getClass().getDeclaredField("childHandler");
           childHandlerField.setAccessible(true);
           final var originalInitializer = (ChannelInitializer<Channel>) childHandlerField.get(bootstrap);
+          final ChannelHandler _bootstrap = bootstrap;
+
+          UNINJECT_TASKS.add(() -> {
+            try {
+              childHandlerField.set(_bootstrap, originalInitializer);
+            } catch (Throwable ignored) {
+            }
+          });
 
           /*
            * Inject our own channel initializer into the original field
@@ -248,8 +268,6 @@ public class BukkitInjector {
               }
             });
           }
-
-          final ChannelHandler _bootstrap = bootstrap;
 
           INITIALIZE_LISTENER.thenAccept(__ -> {
             try {
