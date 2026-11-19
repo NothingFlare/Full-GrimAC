@@ -259,21 +259,26 @@ public class BukkitAntiBotListener implements Listener {
         PlayerVerificationSession session = activeSessions.get(player.getUniqueId());
         if (session == null || session.isCompleted() || session.isFailed()) return;
 
-        Location from = event.getFrom();
         Location to = event.getTo();
         if (to == null) return;
+
+        // If player has not yet transitioned to verification world, ignore movement in main world
+        if (session.getVerificationLocation() != null &&
+                !to.getWorld().equals(session.getVerificationLocation().getWorld())) {
+            return;
+        }
 
         AntiBotManager manager = AntiBotManager.getInstance();
         if (manager == null) return;
         AntiBotConfig config = manager.getConfig();
 
-        // 1. Sonar Horizontal movement lock
+        // 1. Sonar Horizontal movement lock (platform boundary check)
         if (config.isCheckMovementLock()) {
             Location center = session.getVerificationLocation();
             if (center != null) {
                 double dx = to.getX() - center.getX();
                 double dz = to.getZ() - center.getZ();
-                if (Math.abs(dx) > 0.8 || Math.abs(dz) > 0.8) {
+                if (Math.abs(dx) > 3.2 || Math.abs(dz) > 3.2) {
                     event.setTo(new Location(to.getWorld(), center.getX(), to.getY(), center.getZ(), to.getYaw(), to.getPitch()));
                     return;
                 }
@@ -281,11 +286,11 @@ public class BukkitAntiBotListener implements Listener {
         }
 
         double y = to.getY();
-        double deltaY = y - from.getY();
+        double deltaY = y - event.getFrom().getY();
 
         // 2. Sonar falling below platform check
         if (y < session.getPlatformY() - 0.5) {
-            failSession(session, "Игрок провалился сквозь блоки платформы (y=" + String.format(Locale.ROOT, "%.2f", y) + ")");
+            failOrShowCaptcha(session, "Игрок провалился сквозь блоки платформы (y=" + String.format(Locale.ROOT, "%.2f", y) + ")");
             event.setCancelled(true);
             return;
         }
@@ -294,13 +299,13 @@ public class BukkitAntiBotListener implements Listener {
         if (!player.isOnGround()) {
             if (deltaY < 0) {
                 session.incrementFallTicks();
-                if (session.hasMoved() && config.isCheckGravity()) {
+                if (session.hasMoved() && config.isCheckGravity() && !session.isGravityValidated()) {
                     double lastDeltaY = session.getLastDeltaY();
                     double predicted = (lastDeltaY - 0.08) * 0.98;
                     double diff = Math.abs(deltaY - predicted);
                     // Check against Sonar's gravity equation tolerance
                     if (diff > 0.05 && session.getFallTicks() > 1) {
-                        failSession(session, "Нарушение физики гравитации Sonar (diff=" + String.format(Locale.ROOT, "%.4f", diff) + ")");
+                        failOrShowCaptcha(session, "Нарушение физики гравитации Sonar (diff=" + String.format(Locale.ROOT, "%.4f", diff) + ")");
                         event.setCancelled(true);
                         return;
                     } else if (diff < 0.01) {
@@ -311,12 +316,12 @@ public class BukkitAntiBotListener implements Listener {
                 session.setLastDeltaY(deltaY);
             }
         } else {
-            // Player touches ground: verify block hitbox surface
-            if (config.isCheckHitboxCollision()) {
+            // Player touches ground: verify block hitbox surface ONCE upon landing
+            if (config.isCheckHitboxCollision() && !session.isHitboxValidated()) {
                 double platformSurface = session.getPlatformY() + session.getBlockHeight();
                 double diffFromHitbox = Math.abs(y - platformSurface);
                 if (diffFromHitbox > 0.05) {
-                    failSession(session, "Несовпадение хитбокса коллизии (y=" + String.format(Locale.ROOT, "%.3f", y) + ", surface=" + platformSurface + ")");
+                    failOrShowCaptcha(session, "Несовпадение хитбокса коллизии (y=" + String.format(Locale.ROOT, "%.3f", y) + ", surface=" + platformSurface + ")");
                     event.setCancelled(true);
                     return;
                 }
@@ -325,6 +330,40 @@ public class BukkitAntiBotListener implements Listener {
         }
 
         session.setLastY(y);
+    }
+
+    private void failOrShowCaptcha(PlayerVerificationSession session, String reason) {
+        AntiBotManager manager = AntiBotManager.getInstance();
+        AntiBotConfig config = manager != null ? manager.getConfig() : null;
+
+        // Sonar failOrShowCaptcha fallback logic
+        if (config != null && (config.isCaptchaEnabled() || config.isCaptchaOnFail())) {
+            if (!session.isCaptchaRequired()) {
+                session.setCaptchaRequired(true);
+                session.setGravityValidated(true);
+                session.setHitboxValidated(true);
+                session.setCaptchaTriesLeft(config.getCaptchaMaxTries());
+                String code = generateRandomCode(config.getCaptchaCodeLength());
+                session.setCaptchaCode(code);
+
+                Player player = session.getPlayer();
+                if (player != null && player.isOnline() && VerificationWorldManager.getInstance() != null) {
+                    ItemStack mapItem = VerificationWorldManager.getInstance().createCaptchaMap(player, code);
+                    try {
+                        player.getInventory().setItemInHand(mapItem);
+                    } catch (Throwable t) {
+                        try {
+                            player.getInventory().setItem(0, mapItem);
+                        } catch (Throwable ignored) {}
+                    }
+                    player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            "&e&lGrimAC &8» &fВведите код с карты в чат: &7(Осталось попыток: " + session.getCaptchaTriesLeft() + ")"));
+                }
+                return;
+            }
+        }
+
+        failSession(session, reason);
     }
 
     private void failSession(PlayerVerificationSession session, String reason) {

@@ -312,7 +312,7 @@ public class AntibotDatabase {
     }
 
     public boolean isVerified(String username, String ip, long cooldownSeconds) {
-        String fingerprint = username.toLowerCase(Locale.ROOT) + ":" + ip;
+        String fingerprint = FingerprintingUtil.getFingerprint(username, ip);
         Long verifiedAt = verifiedCache.get(fingerprint);
         if (verifiedAt == null) return false;
 
@@ -364,7 +364,7 @@ public class AntibotDatabase {
     }
 
     public void addVerified(String username, String ip) {
-        String fingerprint = username.toLowerCase(Locale.ROOT) + ":" + ip;
+        String fingerprint = FingerprintingUtil.getFingerprint(username, ip);
         long now = System.currentTimeMillis();
         verifiedCache.put(fingerprint, now);
 

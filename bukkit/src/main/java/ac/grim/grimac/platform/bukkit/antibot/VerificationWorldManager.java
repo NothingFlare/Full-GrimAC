@@ -88,18 +88,26 @@ public class VerificationWorldManager {
     private void buildVerificationPlatform() {
         if (verificationWorld == null) return;
 
-        // Build a 5x5 platform around (0, 100, 0)
         Material slabMaterial = getSafeMaterial("SMOOTH_STONE_SLAB", "STEP", "STONE_SLAB");
         Material borderMaterial = getSafeMaterial("BARRIER", "GLASS");
 
-        for (int x = -2; x <= 2; x++) {
-            for (int z = -2; z <= 2; z++) {
+        // Uniform 9x9 slab floor from x=-4 to 4, z=-4 to 4 at y=PLATFORM_Y
+        for (int x = -4; x <= 4; x++) {
+            for (int z = -4; z <= 4; z++) {
                 Block block = verificationWorld.getBlockAt(x, (int) PLATFORM_Y, z);
-                if (x == 0 && z == 0) {
-                    block.setType(slabMaterial); // Center slab for hitbox test (height 0.5)
-                } else {
-                    block.setType(borderMaterial);
-                }
+                block.setType(slabMaterial);
+            }
+        }
+
+        // Safety border walls around the platform at y=PLATFORM_Y+1, +2, +3
+        for (int y = (int) PLATFORM_Y + 1; y <= (int) PLATFORM_Y + 3; y++) {
+            for (int x = -4; x <= 4; x++) {
+                verificationWorld.getBlockAt(x, y, -4).setType(borderMaterial);
+                verificationWorld.getBlockAt(x, y, 4).setType(borderMaterial);
+            }
+            for (int z = -4; z <= 4; z++) {
+                verificationWorld.getBlockAt(-4, y, z).setType(borderMaterial);
+                verificationWorld.getBlockAt(4, y, z).setType(borderMaterial);
             }
         }
     }

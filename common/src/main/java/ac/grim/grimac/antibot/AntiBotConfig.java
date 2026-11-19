@@ -66,6 +66,7 @@ public class AntiBotConfig {
     private boolean checkHitboxCollision = true;
     private boolean checkMovementLock = true;
     private boolean hidePlayersDuringVerification = true;
+    private boolean captchaOnFail = true;
     private boolean checkEntityAttack = true; // Требовать удар по проверочной сущности
     private boolean checkClientSettings = true; // Проверка настроек клиента (язык, прорисовка)
     private int minViewDistance = 2;
@@ -177,6 +178,7 @@ public class AntiBotConfig {
                 checkHitboxCollision = getBoolean(checks, "hitbox-collision", checkHitboxCollision);
                 checkMovementLock = getBoolean(checks, "movement-lock", checkMovementLock);
                 hidePlayersDuringVerification = getBoolean(checks, "hide-players", hidePlayersDuringVerification);
+                captchaOnFail = getBoolean(checks, "captcha-on-fail", captchaOnFail);
                 checkEntityAttack = getBoolean(checks, "entity-attack", checkEntityAttack);
                 checkClientSettings = getBoolean(checks, "client-settings", checkClientSettings);
                 minViewDistance = getInt(checks, "min-view-distance", minViewDistance);
@@ -269,6 +271,7 @@ public class AntiBotConfig {
                     "    hitbox-collision: true # Проверка коллизии хитбоксов блоков при приземлении\n" +
                     "    movement-lock: true # Блокировка движения вне платформы\n" +
                     "    hide-players: true # Скрывать проверяемых игроков от остальных\n" +
+                    "    captcha-on-fail: true # Показывать капчу вместо кика при ошибке физики/коллизии\n" +
                     "    entity-attack: true # Требовать удар по проверочной сущности (проверка рук и ЛКМ)\n" +
                     "    client-settings: true # Проверка стандартных настроек клиента (язык, прорисовка)\n" +
                     "    min-view-distance: 2\n" +
