@@ -232,6 +232,9 @@ public class ProtocolUtil {
     // (which then sees a bare disconnect/reset instead of our kick message).
     // See: https://github.com/jonesdevelopment/sonar/issues/476
     channel.attr(CLOSING).set(true);
+    try {
+      channel.config().setAutoRead(false);
+    } catch (Throwable ignored) {}
     if (protocolVersion.lessThan(ProtocolVersion.MINECRAFT_1_8)) {
       channel.eventLoop().execute(() -> {
         channel.config().setAutoRead(false);

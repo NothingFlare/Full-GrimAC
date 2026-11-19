@@ -146,6 +146,7 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
         Bukkit.getPluginManager().registerEvents(guiManager, this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.RedstoneOptimizer(), this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.TNTOptimizer(), this);
+        Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.DiskOptimizer(), this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.listener.ItemDesyncFixListener(), this);
 
         // Initialize Sonar AntiBot System
@@ -167,6 +168,9 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
                 getLogger().warning("Error shutting down Sonar AntiBot: " + t.getMessage());
             }
         }
+        try {
+            ac.grim.grimac.platform.bukkit.gui.optimization.DiskOptimizer.onServerShutdown();
+        } catch (Throwable ignored) {}
         xyz.jonesdev.sonar.bukkit.antibot.BukkitInjector.uninject();
         GrimAPI.INSTANCE.stop();
     }

@@ -99,8 +99,12 @@ public abstract class InboundHandlerAdapter extends ChannelInboundHandlerAdapter
     final InetAddress inetAddress = socketAddress.getAddress();
     ctx.pipeline().get(InboundHandler.class).setInetAddress(inetAddress);
 
+    final boolean isLoopback = inetAddress.isLoopbackAddress()
+      || "127.0.0.1".equals(inetAddress.getHostAddress())
+      || "0:0:0:0:0:0:0:1".equals(inetAddress.getHostAddress());
+
     // Check if Sonar is already verifying a player with the same IP address
-    if (Sonar.get0().getAntiBot().getConnected().containsKey(inetAddress)) {
+    if (!isLoopback && Sonar.get0().getAntiBot().getConnected().containsKey(inetAddress)) {
       customDisconnect(ctx.channel(), alreadyVerifying, protocolVersion);
       return;
     }
@@ -112,9 +116,9 @@ public abstract class InboundHandlerAdapter extends ChannelInboundHandlerAdapter
     }
 
     final String hostAddress = inetAddress.getHostAddress();
-    // Check if the player failed the verification too many times
+    // Check if the player failed the verification too many times (skip loopback to prevent local lockouts)
     final int limit = Sonar.get0().getConfig().getVerification().getBlacklistThreshold();
-    if (limit > 0) {
+    if (limit > 0 && !isLoopback) {
       final int score = Sonar.get0().getAntiBot().getBlacklist().asMap().getOrDefault(hostAddress, 0);
       if (score >= limit) {
         customDisconnect(ctx.channel(), blacklisted, protocolVersion);
@@ -149,8 +153,8 @@ public abstract class InboundHandlerAdapter extends ChannelInboundHandlerAdapter
       return;
     }
 
-    // Check if the IP address is currently being rate-limited
-    if (!Sonar.get0().getAntiBot().getRatelimiter().attempt(inetAddress)) {
+    // Check if the IP address is currently being rate-limited (skip loopback)
+    if (!isLoopback && !Sonar.get0().getAntiBot().getRatelimiter().attempt(inetAddress)) {
       customDisconnect(ctx.channel(), reconnectedTooFast, protocolVersion);
       return;
     }

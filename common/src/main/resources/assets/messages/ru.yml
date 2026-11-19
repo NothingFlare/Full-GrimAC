@@ -49,11 +49,11 @@ commands:
   main:
     # Информационное сообщение, которое показывается поверх всего при выполнении главной команды
     header:
-      - <yellow>Запущен <b>Sonar</b> <version> на <platform>.
-      - <gray><click:open_url:'https://github.com/jonesdevelopment/sonar'>(C) <copyright-year> Jones Development and Sonar Contributors</click>
+      - <yellow>Запущен <b>Grim AntiBot</b> <version> на <platform>.
+      - <gray><click:open_url:'https://github.com/NothingFlare/Full-GrimAC'>(C) <copyright-year> Full GrimAC Contributors</click>
       - ''
       - <gray>Нужна помощь или есть вопросы?
-      - <white><click:open_url:'https://github.com/NothingFlare/Full-GrimAC'><hover:show_text:'(Нажмите чтобы открыть Discord)'>Откройте тикет в Discord </hover></click><click:open_url:'https://github.com/jonesdevelopment/sonar/issues'><hover:show_text:'(Нажмите чтобы открыть GitHub)'>или откройте новый вопрос на GitHub.
+      - <white><click:open_url:'https://github.com/NothingFlare/Full-GrimAC'><hover:show_text:'(Нажмите чтобы открыть GitHub)'>Репозиторий проекта на GitHub</hover></click>
       - ''
     # Форматирование списка подкоманд
     subcommands: '<suggest-subcommand><hover:show_text:''<gray>Только игроки: </gray><only-players><br><gray>Требуется консоль: </gray><only-console><br><gray>Permission: </gray><white><permission><br><gray>Псевдонимы: </gray><aliases>''><dark_aqua> ▪ <gray>/sonar <subcommand>  <white><description></hover></suggest-subcommand>'

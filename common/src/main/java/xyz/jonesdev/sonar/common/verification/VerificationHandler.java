@@ -112,6 +112,11 @@ public abstract class VerificationHandler implements SonarPacketListener {
 
     // Use a label, so we can easily add more code beneath this method in the future
     blacklist: {
+      if (user.getInetAddress().isLoopbackAddress()
+          || "127.0.0.1".equals(user.getInetAddress().getHostAddress())
+          || "0:0:0:0:0:0:0:1".equals(user.getInetAddress().getHostAddress())) {
+        break blacklist;
+      }
       final String hostAddress = user.getInetAddress().getHostAddress();
       final int score = Sonar.get0().getAntiBot().getBlacklist().get(hostAddress, __ -> 0);
       final int newScore = score + 1;
