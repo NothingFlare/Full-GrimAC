@@ -74,6 +74,13 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
   - Groups online players into latency cohorts (low, medium, high ping).
   - Dynamically compares click consistency, aim patterns, and transaction timing across players in similar network conditions to uncover subtle anomalies.
 
+- **Integrated AntiBot & Alt Account Detection (`antibot.yml`)**
+  - High-performance pre-login filtering running on network threads (`AsyncPlayerPreLoginEvent`) with zero main-thread overhead.
+  - Multi-tier attack detection inspired by Sonar: automatic mitigation triggering based on join/connection velocity, peak tracking, and burst dampening.
+  - Alt account inspection (`/grim alts <player|ip>`), cross-referencing past UUIDs and IP associations, configurable max alts per IP, and real-time staff alerts when players log in with multiple alts.
+  - Name and brand validation with customizable regex rules, client brand length limits, and protocol version blacklisting.
+  - Rejoin rate-limiting, maximum concurrent connections per IP, temporary auto-blacklisting on threshold violations, and persistent SQLite database with WAL mode and memory-mapped caching.
+
 - **Adaptive Performance Protection**
   - Automatically monitors server TPS in real time.
   - When server TPS drops below a configurable threshold (default: `< 15.0`), the anticheat enters an emergency throttling mode:
@@ -103,6 +110,10 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
 | Command | Description | Default Permission |
 | :--- | :--- | :--- |
 | `/grim gui` | Opens the graphical settings menu for checks and server optimizations | `grim.gui` |
+| `/grim antibot [stats\|toggle\|attack\|reload]` | Displays AntiBot status, toggles system, simulates attacks, or reloads | `grim.antibot` |
+| `/grim alts <player\|ip>` | Inspects alt accounts, historical names, and login dates by player or IP | `grim.alts` |
+| `/grim blacklist <add\|remove\|clear\|list> [ip]` | Manages temporary or permanent AntiBot IP blacklists | `grim.blacklist` |
+| `/grim whitelist <add\|remove\|clear\|list> [target]` | Manages AntiBot bypass whitelist for players or IP addresses | `grim.whitelist` |
 | `/grim help` | Displays the help menu and available commands | `grim.help` |
 | `/grim alerts` | Toggles cheater violation alerts in chat | `grim.alerts` |
 | `/grim verbose` | Toggles detailed real-time debug violation output | `grim.verbose` |
@@ -118,6 +129,10 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
 | Node | Description | Default Assignment |
 | :--- | :--- | :--- |
 | `grim.gui` | Allows opening the in-game anticheat configuration GUI | `op` |
+| `grim.antibot` | Grants access to AntiBot management and status monitoring | `op` |
+| `grim.alts` | Allows inspecting player alt accounts and receiving alt alerts | `op` |
+| `grim.blacklist` | Allows modifying and viewing the AntiBot IP blacklist | `op` |
+| `grim.whitelist` | Allows modifying and viewing the AntiBot whitelist | `op` |
 | `grim.alerts` | Grants access to receive cheat violation notices | `op` |
 | `grim.alerts.enable-on-join` | Automatically enables cheat violation alerts upon joining | `op` |
 | `grim.perf` | Allows viewing performance protection status and notices | `op` |
@@ -151,6 +166,40 @@ performance-protection:
   disable-killaura-bots: true
   reduce-raytrace-frequency: true
   notify-ops: true
+```
+
+The AntiBot & Alt Detection configuration (`plugins/FullGrimAC/antibot.yml`):
+
+```yaml
+# Full GrimAC - AntiBot & Alt Detection Configuration
+antibot:
+  enabled: true
+  rejoin-delay-ms: 2500
+  max-online-per-ip: 3
+  blacklisted-protocols: []
+  name-validation:
+    enabled: true
+    regex: "^[a-zA-Z0-9_]{3,16}$"
+  client-brand:
+    enabled: true
+    max-length: 64
+    regex: "^[!-~ §]+$"
+  attack-detection:
+    joins-per-second: 8
+    connections-per-second: 15
+    duration-seconds: 30
+    announcements: true
+  auto-blacklist:
+    threshold: 3
+    duration-seconds: 600
+
+alts:
+  enabled: true
+  max-alts-per-ip: 5
+  block-excess-alts: false
+  alert-on-join: true
+  alert-min-alts: 2
+  kick-message: "&cПревышен лимит разрешенных аккаунтов на вашем IP адресе."
 ```
 
 ---

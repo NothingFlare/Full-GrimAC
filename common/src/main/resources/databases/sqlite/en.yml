@@ -26,17 +26,17 @@ sqlite:
   # How long SQLite waits for a lock before giving up. The handler logs
   # and drops on BackendException; raising this reduces spurious drops on
   # contended disks.
-  busy-timeout-ms: 5000
+  busy-timeout-ms: 10000
 
   # Page cache size (in pages). SQLite default page size is 4096 bytes, so
-  # 10000 pages ≈ 40 MB. Raise for hot histories.
-  cache-pages: 10000
+  # 25000 pages ≈ 100 MB. Raise for hot histories.
+  cache-pages: 25000
 
   # Per-handler batch-flush cap. Each ring handler accumulates events
   # into a PreparedStatement batch and commits on endOfBatch OR when the
   # batch hits this cap, whichever comes first. Higher values trade
   # latency for throughput under sustained bursts.
-  batch-flush-cap: 256
+  batch-flush-cap: 512
 
 # Schema markers — see header comment in config.yml.
 config-flavor: V2
