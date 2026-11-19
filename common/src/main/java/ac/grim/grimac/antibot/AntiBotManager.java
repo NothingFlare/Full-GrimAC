@@ -156,17 +156,19 @@ public class AntiBotManager {
             }
         }
 
-        // 8. Bot Verification Challenge (Sonar-Style Two-Step Reconnect Challenge)
+        // 8. Bot Verification Challenge at Pre-Login (for RECONNECT or BOTH mode)
         boolean isVerified = database.isVerified(username, ip);
         String timing = config.getVerificationTiming();
+        String mode = config.getVerificationMode();
         boolean isAttack = attackTracker.isUnderAttack();
-        boolean requireVerification = !isVerified && (
+        boolean allowReconnectChallenge = "RECONNECT".equalsIgnoreCase(mode) || "BOTH".equalsIgnoreCase(mode);
+        boolean requirePreLoginVerification = !isVerified && allowReconnectChallenge && (
                 "ALWAYS".equalsIgnoreCase(timing) ||
                 ("DURING_ATTACK".equalsIgnoreCase(timing) && isAttack) ||
                 isAttack
         );
 
-        if (requireVerification) {
+        if (requirePreLoginVerification) {
             String verifyKey = ip + ":" + username.toLowerCase(Locale.ROOT);
             Long challengeTime = pendingVerifications.get(verifyKey);
 
@@ -204,15 +206,34 @@ public class AntiBotManager {
         return PreLoginResult.allow();
     }
 
+    public boolean shouldVerifyInGame(String username, String ip) {
+        if (!config.isAntibotEnabled()) return false;
+        if (database.isWhitelisted(ip) || database.isWhitelisted(username)) return false;
+        if (database.isVerified(username, ip)) return false;
+
+        String mode = config.getVerificationMode();
+        if (!"IN_GAME".equalsIgnoreCase(mode) && !"BOTH".equalsIgnoreCase(mode)) {
+            return false;
+        }
+
+        String timing = config.getVerificationTiming();
+        boolean isAttack = attackTracker.isUnderAttack();
+        return "ALWAYS".equalsIgnoreCase(timing) ||
+                ("DURING_ATTACK".equalsIgnoreCase(timing) && isAttack) ||
+                isAttack;
+    }
+
     public void onPlayerJoin(UUID uuid, String username, String ip) {
         if (config == null) return;
 
         playerIpMap.put(uuid, ip);
         onlinePerIp.compute(ip, (k, v) -> (v == null ? 1 : v + 1));
 
-        // Mark as verified
-        database.addVerified(username, ip);
-        attackTracker.onVerifiedLogin();
+        // If player is not subject to in-game verification, mark verified immediately
+        if (!shouldVerifyInGame(username, ip)) {
+            database.addVerified(username, ip);
+            attackTracker.onVerifiedLogin();
+        }
 
         // Record to DB async
         if (config.isAltsEnabled()) {

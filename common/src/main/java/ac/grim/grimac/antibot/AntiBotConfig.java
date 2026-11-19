@@ -37,10 +37,17 @@ public class AntiBotConfig {
 
     // Verification & Blacklist
     private String verificationTiming = "ALWAYS"; // ALWAYS, DURING_ATTACK, OFF
+    private String verificationMode = "IN_GAME"; // IN_GAME, RECONNECT, BOTH
+    private double inGameDurationSeconds = 2.5;
+    private String verificationWelcomeMessage = "&e&lGrimAC &8» &aВы проходите верификацию. Пожалуйста, не двигайтесь, это автоматический процесс.";
+    private String verificationActionbarMessage = "&eПроверка на бота: &fОсталось &a{time} сек.";
+    private String verificationTitle = "&e&lВЕРИФИКАЦИЯ";
+    private String verificationSubtitle = "&7Пожалуйста, подождите...";
+    private String verificationSuccessMessage = "&e&lGrimAC &8» &aВы успешно прошли верификацию! Приятной игры.";
+    private String verificationFailedMessage = "&cВы не прошли автоматическую проверку на бота.";
     private long reconnectMinDelayMs = 2000;
     private long reconnectWindowMs = 60000;
     private String verificationKickMessage = "&e[GrimAC AntiBot]\n&aПроверка на бота!\n&7Пожалуйста, перезайдите на сервер через 2 секунды для подтверждения.";
-    private String verificationSuccessMessage = "&eGrimAC &8» &aПроверка на бота успешно пройдена! Приятной игры.";
     private long blacklistTimeMs = 600000;
     private int blacklistThreshold = 3;
     private boolean nameValidationEnabled = true;
@@ -103,10 +110,17 @@ public class AntiBotConfig {
         Map<String, Object> verification = getSection(data, "verification");
         if (verification != null) {
             verificationTiming = getString(verification, "timing", verificationTiming).toUpperCase(Locale.ROOT);
+            verificationMode = getString(verification, "mode", verificationMode).toUpperCase(Locale.ROOT);
+            inGameDurationSeconds = getDouble(verification, "in-game-duration-seconds", inGameDurationSeconds);
+            verificationWelcomeMessage = getString(verification, "welcome-message", verificationWelcomeMessage);
+            verificationActionbarMessage = getString(verification, "actionbar-message", verificationActionbarMessage);
+            verificationTitle = getString(verification, "title-message", verificationTitle);
+            verificationSubtitle = getString(verification, "subtitle-message", verificationSubtitle);
+            verificationSuccessMessage = getString(verification, "success-message", verificationSuccessMessage);
+            verificationFailedMessage = getString(verification, "failed-message", verificationFailedMessage);
             reconnectMinDelayMs = getLong(verification, "reconnect-min-delay-ms", reconnectMinDelayMs);
             reconnectWindowMs = getLong(verification, "reconnect-window-ms", reconnectWindowMs);
             verificationKickMessage = getString(verification, "kick-message", verificationKickMessage);
-            verificationSuccessMessage = getString(verification, "success-message", verificationSuccessMessage);
             blacklistTimeMs = getLong(verification, "blacklist-time-ms", blacklistTimeMs);
             blacklistThreshold = getInt(verification, "blacklist-threshold", blacklistThreshold);
 
@@ -175,13 +189,20 @@ public class AntiBotConfig {
                     "  attack-cooldown-delay-ms: 3000\n" +
                     "  notify-staff: true\n" +
                     "\n" +
-                    "# Проверка и фильтрация бот-подключений (Verification)\n" +
+                    "# Проверка и фильтрация бот-подключений (Verification по образцу Sonar)\n" +
                     "verification:\n" +
                     "  timing: ALWAYS # Режим проверки: ALWAYS (всегда для новых), DURING_ATTACK (только при атаке), OFF (выкл)\n" +
+                    "  mode: IN_GAME # Тип проверки: IN_GAME (внутриигровая с заморозкой и таймером Sonar), RECONNECT (перезаход), BOTH\n" +
+                    "  in-game-duration-seconds: 2.5 # Длительность внутриигровой проверки\n" +
+                    "  welcome-message: \"&e&lGrimAC &8» &aВы проходите верификацию. Пожалуйста, не двигайтесь, это автоматический процесс.\"\n" +
+                    "  actionbar-message: \"&eПроверка на бота: &fОсталось &a{time} сек.\"\n" +
+                    "  title-message: \"&e&lВЕРИФИКАЦИЯ\"\n" +
+                    "  subtitle-message: \"&7Пожалуйста, подождите...\"\n" +
+                    "  success-message: \"&e&lGrimAC &8» &aВы успешно прошли верификацию! Приятной игры.\"\n" +
+                    "  failed-message: \"&cВы не прошли автоматическую проверку на бота.\"\n" +
                     "  reconnect-min-delay-ms: 2000 # Минимальная задержка перед переподключением\n" +
                     "  reconnect-window-ms: 60000 # Окно ожидания переподключения\n" +
                     "  kick-message: \"&e[GrimAC AntiBot]\\n&aПроверка на бота!\\n&7Пожалуйста, перезайдите на сервер через 2 секунды для подтверждения.\"\n" +
-                    "  success-message: \"&eGrimAC &8» &aПроверка на бота успешно пройдена! Приятной игры.\"\n" +
                     "  blacklist-time-ms: 600000\n" +
                     "  blacklist-threshold: 3\n" +
                     "  name-validation:\n" +
@@ -230,6 +251,11 @@ public class AntiBotConfig {
     private int getInt(Map<String, Object> map, String key, int def) {
         Object val = map.get(key);
         return val instanceof Number ? ((Number) val).intValue() : def;
+    }
+
+    private double getDouble(Map<String, Object> map, String key, double def) {
+        Object val = map.get(key);
+        return val instanceof Number ? ((Number) val).doubleValue() : def;
     }
 
     private long getLong(Map<String, Object> map, String key, long def) {

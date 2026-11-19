@@ -140,8 +140,10 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
         // Initialize Antibot & Alt Detection System
         ac.grim.grimac.antibot.AntiBotManager antiBotManager = new ac.grim.grimac.antibot.AntiBotManager();
         antiBotManager.init(plugin.getDataFolder());
-        Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.antibot.BukkitAntiBotListener(), this);
+        ac.grim.grimac.platform.bukkit.antibot.BukkitAntiBotListener antiBotListener = new ac.grim.grimac.platform.bukkit.antibot.BukkitAntiBotListener();
+        Bukkit.getPluginManager().registerEvents(antiBotListener, this);
         getScheduler().getAsyncScheduler().runAtFixedRate(plugin, antiBotManager::tick, 20L, 20L);
+        getScheduler().getGlobalRegionScheduler().runAtFixedRate(plugin, antiBotListener::tickVerificationSessions, 1L, 1L);
     }
 
     @Override
