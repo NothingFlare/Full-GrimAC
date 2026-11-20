@@ -7,9 +7,9 @@
 package ac.grim.grimac.platform.bukkit.gui.optimization;
 
 import ac.grim.grimac.platform.bukkit.GrimACBukkitLoaderPlugin;
-import ac.grim.grimac.utils.anticheat.LogUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -18,20 +18,23 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockMultiPlaceEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
+import org.bukkit.event.hanging.HangingBreakByEntityEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.hanging.HangingPlaceEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerFishEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.vehicle.VehicleCreateEvent;
 import org.bukkit.event.vehicle.VehicleDestroyEvent;
-import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldSaveEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
@@ -51,14 +54,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Keeps world autoSave=true during normal gameplay so Paper's ChunkMap.processUnloads()
  *   is NEVER blocked, eliminating memory leaks and OutOfMemoryError in Moonrise chunk system.
  * - On the exact tick when server auto-save executes, temporarily suspends auto-save
- *   ONLY for worlds where no players interacted (no block place, break, interaction, etc.),
- *   skipping unnecessary disk I/O and level.dat writes.
+ *   ONLY for worlds where no players interacted, skipping unnecessary disk I/O and level.dat writes.
  * - Restores autoSave=true immediately on the very next tick.
- * - If any player modifies a world, it remains queued and saves normally as always.
+ * - If any player modifies a world, it saves normally as always.
  *
  * Maintenance:
  * - Off-main thread database compaction and pruning.
- * - Proactive JVM memory pressure monitoring.
+ * - Proactive JVM memory pressure relief.
  * - Safe log rotation.
  */
 public class DiskOptimizer implements Listener {
@@ -160,9 +162,7 @@ public class DiskOptimizer implements Listener {
                 }
 
             }, 600L, 1200L);
-        } catch (Throwable t) {
-            LogUtil.warn("DiskOptimizer: Не удалось запустить планировщик оптимизации: " + t.getMessage());
-        }
+        } catch (Throwable ignored) {}
     }
 
     public static void stopTask() {
@@ -205,11 +205,13 @@ public class DiskOptimizer implements Listener {
      */
     public static void markWorldModified(World world) {
         if (!enabled || world == null) return;
+        // If there are no players in this world, ignore: cannot be a player modification
+        if (world.getPlayers().isEmpty()) return;
+
         UUID uid = world.getUID();
         if (modifiedWorlds.add(uid)) {
             try {
                 world.setAutoSave(true);
-                LogUtil.info("DiskOptimizer: Мир '" + world.getName() + "' был изменен игроком. Автосохранение запланировано на следующий цикл.");
             } catch (Throwable ignored) {}
         }
     }
@@ -221,16 +223,20 @@ public class DiskOptimizer implements Listener {
                 Class<?> craftServerClass = Bukkit.getServer().getClass();
                 getServerMethod = craftServerClass.getMethod("getServer");
                 Object mcServer = getServerMethod.invoke(Bukkit.getServer());
-                ticksUntilAutosaveField = mcServer.getClass().getField("ticksUntilAutosave");
-            } catch (Throwable ignored) {
-                try {
-                    Object mcServer = getServerMethod != null ? getServerMethod.invoke(Bukkit.getServer()) : null;
-                    if (mcServer != null) {
-                        ticksUntilAutosaveField = mcServer.getClass().getDeclaredField("ticksUntilAutosave");
-                        ticksUntilAutosaveField.setAccessible(true);
+                if (mcServer != null) {
+                    Class<?> clazz = mcServer.getClass();
+                    while (clazz != null && clazz != Object.class) {
+                        try {
+                            Field f = clazz.getDeclaredField("ticksUntilAutosave");
+                            f.setAccessible(true);
+                            ticksUntilAutosaveField = f;
+                            break;
+                        } catch (NoSuchFieldException ignored) {
+                            clazz = clazz.getSuperclass();
+                        }
                     }
-                } catch (Throwable ignored2) {}
-            }
+                }
+            } catch (Throwable ignored) {}
         }
         if (getServerMethod != null && ticksUntilAutosaveField != null) {
             try {
@@ -242,22 +248,28 @@ public class DiskOptimizer implements Listener {
     }
 
     // -------------------------------------------------------------
-    // Player & World Interaction Listeners
+    // Player Interaction Listeners
     // -------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
-        markWorldModified(event.getBlock().getWorld());
+        if (event.getPlayer() != null) {
+            markWorldModified(event.getBlock().getWorld());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockMultiPlace(BlockMultiPlaceEvent event) {
-        markWorldModified(event.getBlock().getWorld());
+        if (event.getPlayer() != null) {
+            markWorldModified(event.getBlock().getWorld());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        markWorldModified(event.getBlock().getWorld());
+        if (event.getPlayer() != null) {
+            markWorldModified(event.getBlock().getWorld());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -281,72 +293,101 @@ public class DiskOptimizer implements Listener {
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
+        markWorldModified(event.getPlayer().getWorld());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerArmorStandManipulate(PlayerArmorStandManipulateEvent event) {
+        markWorldModified(event.getPlayer().getWorld());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerFish(PlayerFishEvent event) {
+        markWorldModified(event.getPlayer().getWorld());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+        if (event.getDamager() instanceof Player) {
+            markWorldModified(event.getEntity().getWorld());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerDropItem(PlayerDropItemEvent event) {
         markWorldModified(event.getPlayer().getWorld());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityPickupItem(EntityPickupItemEvent event) {
-        markWorldModified(event.getEntity().getWorld());
+        if (event.getEntity() instanceof Player) {
+            markWorldModified(event.getEntity().getWorld());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityPlace(EntityPlaceEvent event) {
-        markWorldModified(event.getEntity().getWorld());
+        if (event.getPlayer() != null) {
+            markWorldModified(event.getEntity().getWorld());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onHangingPlace(HangingPlaceEvent event) {
-        markWorldModified(event.getEntity().getWorld());
+        if (event.getPlayer() != null) {
+            markWorldModified(event.getEntity().getWorld());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onHangingBreak(HangingBreakEvent event) {
-        markWorldModified(event.getEntity().getWorld());
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onVehicleCreate(VehicleCreateEvent event) {
-        markWorldModified(event.getVehicle().getWorld());
+        if (event instanceof HangingBreakByEntityEvent) {
+            HangingBreakByEntityEvent entityEvent = (HangingBreakByEntityEvent) event;
+            if (entityEvent.getRemover() instanceof Player) {
+                markWorldModified(event.getEntity().getWorld());
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onVehicleDestroy(VehicleDestroyEvent event) {
-        markWorldModified(event.getVehicle().getWorld());
+        if (event.getAttacker() instanceof Player) {
+            markWorldModified(event.getVehicle().getWorld());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
-        if (!event.blockList().isEmpty()) {
+        if (!event.blockList().isEmpty() && !event.getLocation().getWorld().getPlayers().isEmpty()) {
             markWorldModified(event.getLocation().getWorld());
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
-        if (!event.blockList().isEmpty()) {
+        if (!event.blockList().isEmpty() && !event.getBlock().getWorld().getPlayers().isEmpty()) {
             markWorldModified(event.getBlock().getWorld());
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getInventory().getLocation() != null && event.getInventory().getLocation().getWorld() != null) {
-            markWorldModified(event.getInventory().getLocation().getWorld());
+        if (event.getWhoClicked() instanceof Player && event.getInventory().getLocation() != null) {
+            World world = event.getInventory().getLocation().getWorld();
+            if (world != null && !world.getPlayers().isEmpty()) {
+                markWorldModified(world);
+            }
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
-        if (event.getInventory().getLocation() != null && event.getInventory().getLocation().getWorld() != null) {
-            markWorldModified(event.getInventory().getLocation().getWorld());
-        }
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onChunkLoad(ChunkLoadEvent event) {
-        if (event.isNewChunk()) {
-            markWorldModified(event.getWorld());
+        if (event.getWhoClicked() instanceof Player && event.getInventory().getLocation() != null) {
+            World world = event.getInventory().getLocation().getWorld();
+            if (world != null && !world.getPlayers().isEmpty()) {
+                markWorldModified(world);
+            }
         }
     }
 
@@ -368,16 +409,11 @@ public class DiskOptimizer implements Listener {
     public void onWorldSave(WorldSaveEvent event) {
         if (!enabled) return;
         World world = event.getWorld();
-        UUID uid = world.getUID();
-
-        boolean wasModified = modifiedWorlds.remove(uid);
-        if (wasModified) {
-            LogUtil.info("DiskOptimizer: Мир '" + world.getName() + "' сохранен на диск. Ожидание новых изменений...");
-        }
+        modifiedWorlds.remove(world.getUID());
     }
 
     // -------------------------------------------------------------
-    // Memory and Database Maintenance
+    // Memory and Database Maintenance (Silent)
     // -------------------------------------------------------------
 
     private static void checkMemoryPressure(long now) {
@@ -391,10 +427,6 @@ public class DiskOptimizer implements Listener {
             double usedRatio = (double) usedMemory / (double) maxMemory;
             if (usedRatio > 0.85 && (now - lastMemoryReliefTime > 60000L)) {
                 lastMemoryReliefTime = now;
-                long usedMB = usedMemory / (1024 * 1024);
-                long maxMB = maxMemory / (1024 * 1024);
-                LogUtil.warn("DiskOptimizer: Высокая нагрузка на память (" + usedMB + "MB / " + maxMB + "MB, " + (int)(usedRatio * 100) + "%). Выполняется мягкая очистка кэшей...");
-
                 runMemoryRelief();
             }
         } catch (Throwable ignored) {}
