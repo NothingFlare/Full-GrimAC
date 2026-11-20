@@ -54,7 +54,7 @@ public final class ScheduledServiceManager {
     DB_CLEANUP = createScheduledExecutor("sonar-db-cleanup-thread");
     LOGIN_QUEUE = createScheduledExecutor("sonar-queue-thread");
     STATISTICS = createScheduledExecutor("sonar-statistics-thread");
-    UPDATE_NOTIFIER = createScheduledExecutor("sonar-update-notifier");
+    // UPDATE_NOTIFIER is disabled in Full GrimAC fork
 
     if (Sonar.get0().getVerifiedPlayerController().getCachedDatabaseType() != SonarConfiguration.Database.Type.NONE) {
       DB_CLEANUP.scheduleAtFixedRate(() -> {
@@ -86,11 +86,11 @@ public final class ScheduledServiceManager {
     STATISTICS.scheduleAtFixedRate(GlobalSonarStatistics::hitEverySecond,
       0L, 1L, TimeUnit.SECONDS);
 
-    // This config setting only updates when the server is restarted
-    if (Sonar.get0().getConfig().getGeneralConfig().getBoolean("general.check-for-updates")) {
-      UPDATE_NOTIFIER.scheduleAtFixedRate(UpdateChecker::checkForUpdates,
-        0L, 2L, TimeUnit.HOURS);
-    }
+    // Update checker disabled in Full GrimAC fork
+    // if (Sonar.get0().getConfig().getGeneralConfig().getBoolean("general.check-for-updates")) {
+    //   UPDATE_NOTIFIER.scheduleAtFixedRate(UpdateChecker::checkForUpdates,
+    //     0L, 2L, TimeUnit.HOURS);
+    // }
   }
 
   public synchronized void stop() {
