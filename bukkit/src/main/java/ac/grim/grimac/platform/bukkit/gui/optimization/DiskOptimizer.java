@@ -14,7 +14,6 @@ import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockMultiPlaceEvent;
@@ -39,26 +38,46 @@ import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * High-performance disk and memory optimizer.
- * - Smart World Auto-Save: Skips auto-save for untouched worlds during the save interval.
- *   If any player places a block, breaks a block, or interacts, auto-save is enabled and the world saves as usual.
- * - Runs periodic background database compaction and expired record pruning asynchronously.
- * - Monitors heap memory pressure to prevent OutOfMemoryError and chunk parsing crashes.
- * - Trims stale disk cache and temporary files.
+ *
+ * Smart World Auto-Save:
+ * - Keeps world autoSave=true during normal gameplay so Paper's ChunkMap.processUnloads()
+ *   is NEVER blocked, eliminating memory leaks and OutOfMemoryError in Moonrise chunk system.
+ * - On the exact tick when server auto-save executes, temporarily suspends auto-save
+ *   ONLY for worlds where no players interacted (no block place, break, interaction, etc.),
+ *   skipping unnecessary disk I/O and level.dat writes.
+ * - Restores autoSave=true immediately on the very next tick.
+ * - If any player modifies a world, it remains queued and saves normally as always.
+ *
+ * Maintenance:
+ * - Off-main thread database compaction and pruning.
+ * - Proactive JVM memory pressure monitoring.
+ * - Safe log rotation.
  */
 public class DiskOptimizer implements Listener {
 
     public static volatile boolean enabled = false;
 
     private static final Set<UUID> modifiedWorlds = ConcurrentHashMap.newKeySet();
-    private static BukkitTask schedulerTask;
+    private static final Set<UUID> skippedWorldsInCurrentCycle = ConcurrentHashMap.newKeySet();
+
+    private static BukkitTask mainTickTask;
+    private static BukkitTask maintenanceTask;
+
     private static volatile long lastMaintenanceTime = 0;
     private static volatile long lastMemoryReliefTime = 0;
+
+    // Reflection cache for DedicatedServer.ticksUntilAutosave
+    private static Method getServerMethod;
+    private static Field ticksUntilAutosaveField;
+    private static boolean reflectionInitialized = false;
 
     public static boolean isEnabled() {
         return enabled;
@@ -78,16 +97,54 @@ public class DiskOptimizer implements Listener {
         stopTask();
         if (!enabled) return;
 
-        // When enabled, configure each world: if previously modified, keep autoSave=true, otherwise false (idle)
+        // Ensure all worlds start with autoSave=true so chunk unloads run smoothly
         for (World world : Bukkit.getWorlds()) {
             try {
-                world.setAutoSave(modifiedWorlds.contains(world.getUID()));
+                world.setAutoSave(true);
             } catch (Throwable ignored) {}
         }
 
         try {
-            // Run optimizer maintenance asynchronously every 60 seconds (1200 ticks)
-            schedulerTask = Bukkit.getScheduler().runTaskTimerAsynchronously(GrimACBukkitLoaderPlugin.LOADER, () -> {
+            // Main thread 1-tick monitor: handles safe, 1-tick auto-save suppression for untouched worlds
+            mainTickTask = Bukkit.getScheduler().runTaskTimer(GrimACBukkitLoaderPlugin.LOADER, () -> {
+                if (!enabled) return;
+
+                int ticksUntilSave = getTicksUntilAutosave();
+                boolean isAutosaveApproaching;
+                if (ticksUntilSave >= 0) {
+                    isAutosaveApproaching = (ticksUntilSave <= 1);
+                } else {
+                    // Fallback: check modulo 6000 ticks (default Paper autosave interval)
+                    isAutosaveApproaching = (Bukkit.getCurrentTick() % 6000 == 5999);
+                }
+
+                if (isAutosaveApproaching) {
+                    // Autosave is about to run on the next tick!
+                    // For worlds where no player interacted, temporarily disable autoSave for 1 tick to skip saving
+                    for (World world : Bukkit.getWorlds()) {
+                        if (!modifiedWorlds.contains(world.getUID())) {
+                            try {
+                                world.setAutoSave(false);
+                                skippedWorldsInCurrentCycle.add(world.getUID());
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                } else if (!skippedWorldsInCurrentCycle.isEmpty()) {
+                    // Autosave tick has finished! Restore autoSave=true immediately so chunk unloads continue
+                    for (UUID uid : skippedWorldsInCurrentCycle) {
+                        World world = Bukkit.getWorld(uid);
+                        if (world != null) {
+                            try {
+                                world.setAutoSave(true);
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                    skippedWorldsInCurrentCycle.clear();
+                }
+            }, 1L, 1L);
+
+            // Off-main asynchronous maintenance task (every 60s)
+            maintenanceTask = Bukkit.getScheduler().runTaskTimerAsynchronously(GrimACBukkitLoaderPlugin.LOADER, () -> {
                 if (!enabled) return;
 
                 long now = System.currentTimeMillis();
@@ -109,11 +166,17 @@ public class DiskOptimizer implements Listener {
     }
 
     public static void stopTask() {
-        if (schedulerTask != null) {
+        if (mainTickTask != null) {
             try {
-                schedulerTask.cancel();
+                mainTickTask.cancel();
             } catch (Throwable ignored) {}
-            schedulerTask = null;
+            mainTickTask = null;
+        }
+        if (maintenanceTask != null) {
+            try {
+                maintenanceTask.cancel();
+            } catch (Throwable ignored) {}
+            maintenanceTask = null;
         }
 
         // Restore default vanilla autosave for all worlds
@@ -123,6 +186,7 @@ public class DiskOptimizer implements Listener {
             } catch (Throwable ignored) {}
         }
         modifiedWorlds.clear();
+        skippedWorldsInCurrentCycle.clear();
     }
 
     public static void onServerShutdown() {
@@ -137,19 +201,44 @@ public class DiskOptimizer implements Listener {
 
     /**
      * Marks a world as modified by a player.
-     * Enables Bukkit/Paper auto-save for this world so it will be saved on the next autosave cycle.
+     * Guarantees the world will be saved on the next auto-save cycle.
      */
     public static void markWorldModified(World world) {
         if (!enabled || world == null) return;
         UUID uid = world.getUID();
-        if (!modifiedWorlds.contains(uid)) {
-            if (modifiedWorlds.add(uid)) {
+        if (modifiedWorlds.add(uid)) {
+            try {
+                world.setAutoSave(true);
+                LogUtil.info("DiskOptimizer: Мир '" + world.getName() + "' был изменен игроком. Автосохранение запланировано на следующий цикл.");
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private static int getTicksUntilAutosave() {
+        if (!reflectionInitialized) {
+            reflectionInitialized = true;
+            try {
+                Class<?> craftServerClass = Bukkit.getServer().getClass();
+                getServerMethod = craftServerClass.getMethod("getServer");
+                Object mcServer = getServerMethod.invoke(Bukkit.getServer());
+                ticksUntilAutosaveField = mcServer.getClass().getField("ticksUntilAutosave");
+            } catch (Throwable ignored) {
                 try {
-                    world.setAutoSave(true);
-                    LogUtil.info("DiskOptimizer: Мир '" + world.getName() + "' был изменен игроком. Автосохранение активировано для следующего цикла.");
-                } catch (Throwable ignored) {}
+                    Object mcServer = getServerMethod != null ? getServerMethod.invoke(Bukkit.getServer()) : null;
+                    if (mcServer != null) {
+                        ticksUntilAutosaveField = mcServer.getClass().getDeclaredField("ticksUntilAutosave");
+                        ticksUntilAutosaveField.setAccessible(true);
+                    }
+                } catch (Throwable ignored2) {}
             }
         }
+        if (getServerMethod != null && ticksUntilAutosaveField != null) {
+            try {
+                Object mcServer = getServerMethod.invoke(Bukkit.getServer());
+                return ticksUntilAutosaveField.getInt(mcServer);
+            } catch (Throwable ignored) {}
+        }
+        return -1;
     }
 
     // -------------------------------------------------------------
@@ -265,14 +354,14 @@ public class DiskOptimizer implements Listener {
     public void onWorldLoad(WorldLoadEvent event) {
         if (!enabled) return;
         try {
-            // New world starts in idle state (no modifications yet)
-            event.getWorld().setAutoSave(false);
+            event.getWorld().setAutoSave(true);
         } catch (Throwable ignored) {}
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onWorldUnload(WorldUnloadEvent event) {
         modifiedWorlds.remove(event.getWorld().getUID());
+        skippedWorldsInCurrentCycle.remove(event.getWorld().getUID());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -282,13 +371,9 @@ public class DiskOptimizer implements Listener {
         UUID uid = world.getUID();
 
         boolean wasModified = modifiedWorlds.remove(uid);
-        try {
-            // World was successfully saved to disk. Reset to idle mode until a player modifies it again.
-            world.setAutoSave(false);
-            if (wasModified) {
-                LogUtil.info("DiskOptimizer: Мир '" + world.getName() + "' успешно сохранен на диск. Автосохранение переведено в режим ожидания изменений.");
-            }
-        } catch (Throwable ignored) {}
+        if (wasModified) {
+            LogUtil.info("DiskOptimizer: Мир '" + world.getName() + "' сохранен на диск. Ожидание новых изменений...");
+        }
     }
 
     // -------------------------------------------------------------
