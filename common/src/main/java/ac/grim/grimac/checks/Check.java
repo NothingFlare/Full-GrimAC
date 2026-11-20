@@ -45,7 +45,7 @@ public class Check extends GrimProcessor implements AbstractCheck {
     private @MonotonicNonNull String description;
     private double decay;
     private double setbackVL;
-    @Setter private boolean isEnabled;
+    @Setter private boolean isEnabled = true;
 
     // permissions
     private boolean exemptPermission;
@@ -233,11 +233,9 @@ public class Check extends GrimProcessor implements AbstractCheck {
             if (setbackVL == -1) setbackVL = Double.MAX_VALUE;
         }
 
-        if (CheckToggleRegistry.isCheckDisabled(checkName)
-                || CheckToggleRegistry.isCheckDisabled(configName)
-                || CheckToggleRegistry.isCheckDisabled(alternativeName)) {
-            this.isEnabled = false;
-        }
+        this.isEnabled = !CheckToggleRegistry.isCheckDisabled(checkName)
+                && !CheckToggleRegistry.isCheckDisabled(configName)
+                && !CheckToggleRegistry.isCheckDisabled(alternativeName);
 
         super.reload(configuration);
     }

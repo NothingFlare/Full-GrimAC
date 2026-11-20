@@ -39,6 +39,7 @@ import java.util.List;
 public class GrimGuiManager implements PlatformGuiHandler, Listener {
 
     private static GrimGuiManager instance;
+    private final Object saveLock = new Object();
 
     public record CheckEntry(int slot, String checkName, String displayName, Material material, String description) {}
 
@@ -516,6 +517,8 @@ public class GrimGuiManager implements PlatformGuiHandler, Listener {
                 player.sendMessage("§eGrimAC §8» §fПроверка §b" + entry.displayName() + " §aВКЛЮЧЕНА§f.");
             }
             inv.setItem(entry.slot(), buildCheckItem(entry, !newDisabledState));
+            CheckEntry allEntry = new CheckEntry(44, "ALL_CHECKS", "Все проверки", Material.EMERALD_BLOCK, "Мастер-переключатель: включить или выключить все проверки одновременно");
+            inv.setItem(44, buildCheckItem(allEntry, CheckToggleRegistry.getDisabledChecks().isEmpty()));
         }
         playClickSound(player);
         saveSettings();
@@ -572,17 +575,19 @@ public class GrimGuiManager implements PlatformGuiHandler, Listener {
 
     public void saveSettings() {
         Bukkit.getScheduler().runTaskAsynchronously(GrimACBukkitLoaderPlugin.LOADER, () -> {
-            File file = getSettingsFile();
-            YamlConfiguration config = new YamlConfiguration();
-            config.set("optimizations.tps-protection", PerformanceProtectionManager.isEnabled());
-            config.set("optimizations.redstone-optimization", RedstoneOptimizer.enabled);
-            config.set("optimizations.tnt-optimization", TNTOptimizer.enabled);
-            config.set("optimizations.disk-optimization", DiskOptimizer.enabled);
-            config.set("disabled-checks", new ArrayList<>(CheckToggleRegistry.getDisabledChecks()));
-            try {
-                config.save(file);
-            } catch (IOException e) {
-                LogUtil.error("Failed to save gui-settings.yml", e);
+            synchronized (saveLock) {
+                File file = getSettingsFile();
+                YamlConfiguration config = new YamlConfiguration();
+                config.set("optimizations.tps-protection", PerformanceProtectionManager.isEnabled());
+                config.set("optimizations.redstone-optimization", RedstoneOptimizer.enabled);
+                config.set("optimizations.tnt-optimization", TNTOptimizer.enabled);
+                config.set("optimizations.disk-optimization", DiskOptimizer.enabled);
+                config.set("disabled-checks", new ArrayList<>(CheckToggleRegistry.getDisabledChecks()));
+                try {
+                    config.save(file);
+                } catch (IOException e) {
+                    LogUtil.error("Failed to save gui-settings.yml", e);
+                }
             }
         });
     }

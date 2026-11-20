@@ -55,7 +55,7 @@ public class TNTOptimizer implements Listener {
 
         // 1. Water check: TNT exploding in water deals 0 block damage in vanilla
         Block block = loc.getBlock();
-        if (block.isLiquid() || block.getType().name().contains("WATER") || block.getType().name().contains("BUBBLE")) {
+        if (event.getEntity().isInWater() || block.isLiquid() || block.getType().name().contains("WATER") || block.getType().name().contains("BUBBLE")) {
             event.blockList().clear();
             return;
         }

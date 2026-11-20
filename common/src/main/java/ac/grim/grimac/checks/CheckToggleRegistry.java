@@ -65,5 +65,15 @@ public final class CheckToggleRegistry {
 
     public static void clear() {
         disabledChecks.clear();
+        try {
+            if (GrimAPI.INSTANCE != null && GrimAPI.INSTANCE.getPlayerDataManager() != null) {
+                for (GrimPlayer player : GrimAPI.INSTANCE.getPlayerDataManager().getEntries()) {
+                    for (AbstractCheck check : player.getChecks()) {
+                        check.setEnabled(true);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
     }
 }
