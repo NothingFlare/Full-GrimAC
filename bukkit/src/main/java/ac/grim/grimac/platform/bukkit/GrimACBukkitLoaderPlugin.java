@@ -149,7 +149,9 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.DiskOptimizer(), this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.listener.ItemDesyncFixListener(), this);
 
-        // Initialize Sonar AntiBot System
+        // Initialize Sonar AntiBot & Captcha System
+        // Copyright (C) 2025 Sonar Contributors (https://github.com/jonesdevelopment/sonar/)
+        // Licensed under GNU GPLv3
         try {
             sonarBootstrap = new xyz.jonesdev.sonar.bukkit.SonarBukkit(this);
             sonarBootstrap.initialize();

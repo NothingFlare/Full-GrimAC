@@ -232,6 +232,10 @@ Full GrimAC is free and open-source software licensed under the **GNU General Pu
   Copyright (C) 2020–2024 GrimAC Team  
   Repository: [https://github.com/GrimAnticheat/Grim](https://github.com/GrimAnticheat/Grim)
 
+- **Sonar AntiBot & Captcha System**:  
+  Copyright (C) 2025 Sonar Contributors  
+  Repository: [https://github.com/jonesdevelopment/sonar/](https://github.com/jonesdevelopment/sonar/)
+
 - **Full GrimAC Modifications & Additions**:  
   Copyright (C) 2026 NothingFlare  
   Part of Full GrimAC project.

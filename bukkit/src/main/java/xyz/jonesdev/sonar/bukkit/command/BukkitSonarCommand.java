@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2025 Sonar Contributors
+ * Part of Sonar AntiBot (https://github.com/jonesdevelopment/sonar/)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

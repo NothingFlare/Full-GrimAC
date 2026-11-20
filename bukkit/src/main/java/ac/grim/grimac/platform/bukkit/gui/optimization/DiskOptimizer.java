@@ -438,6 +438,7 @@ public class DiskOptimizer implements Listener {
         } catch (Throwable ignored) {}
     }
 
+    // Clean up Sonar verified players database (https://github.com/jonesdevelopment/sonar/)
     private static void runDatabaseMaintenance() {
         try {
             xyz.jonesdev.sonar.api.Sonar sonar = xyz.jonesdev.sonar.api.Sonar.get0();
