@@ -34,8 +34,8 @@ import static xyz.jonesdev.sonar.api.profiler.SimpleProcessProfiler.*;
 public final class AttackTracker {
   public static final AttackTracker INSTANCE = new AttackTracker();
 
-  private @Nullable AttackStatistics currentAttack;
-  private int attackThreshold;
+  private volatile @Nullable AttackStatistics currentAttack;
+  private volatile int attackThreshold;
 
   @Getter
   @ToString

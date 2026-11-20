@@ -17,6 +17,8 @@
 
 package xyz.jonesdev.sonar.common.verification;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import org.jetbrains.annotations.NotNull;
 import xyz.jonesdev.sonar.api.Sonar;
 import xyz.jonesdev.sonar.api.antibot.SonarUser;
@@ -30,6 +32,7 @@ import xyz.jonesdev.sonar.common.protocol.packets.login.LoginAcknowledgedPacket;
 import xyz.jonesdev.sonar.common.protocol.packets.play.ClientInformationPacket;
 import xyz.jonesdev.sonar.common.protocol.packets.play.KeepAlivePacket;
 import xyz.jonesdev.sonar.common.protocol.packets.play.PluginMessagePacket;
+import xyz.jonesdev.sonar.common.util.ProtocolUtil;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
@@ -179,11 +182,19 @@ public final class LoginHandler extends VerificationHandler {
     // Check if the decoded client brand string is too long
     checkState(data.length < Sonar.get0().getConfig().getVerification().getBrand().getMaxLength(),
       "client brand contains too much data: " + data.length);
-    // https://discord.com/channels/923308209769426994/1116066363887321199/1256929441053933608
-    String brand = new String(data, StandardCharsets.UTF_8);
-    // Remove the invalid character at the beginning of the client brand
-    if (user.getProtocolVersion().greaterThanOrEquals(ProtocolVersion.MINECRAFT_1_8) && brand.length() > 1) {
-      brand = brand.substring(1);
+    String brand;
+    if (user.getProtocolVersion().greaterThanOrEquals(ProtocolVersion.MINECRAFT_1_8)) {
+      try {
+        final ByteBuf buf = Unpooled.wrappedBuffer(data);
+        brand = ProtocolUtil.readString(buf, 32767);
+      } catch (Throwable t) {
+        brand = new String(data, StandardCharsets.UTF_8);
+        if (brand.length() > 1 && brand.charAt(0) < 32) {
+          brand = brand.substring(1);
+        }
+      }
+    } else {
+      brand = new String(data, StandardCharsets.UTF_8);
     }
     // Regex pattern for validating client brands
     final Pattern pattern = Sonar.get0().getConfig().getVerification().getBrand().getValidRegex();

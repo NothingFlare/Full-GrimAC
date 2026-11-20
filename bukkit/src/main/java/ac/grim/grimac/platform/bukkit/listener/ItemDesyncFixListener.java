@@ -162,4 +162,9 @@ public final class ItemDesyncFixListener implements Listener {
             resync(event.getPlayer());
         }
     }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        lastResyncTick.remove(event.getPlayer().getUniqueId());
+    }
 }

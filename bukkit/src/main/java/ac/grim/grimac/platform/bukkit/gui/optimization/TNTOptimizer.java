@@ -41,9 +41,10 @@ public class TNTOptimizer implements Listener {
         if (!(event.getEntity() instanceof TNTPrimed)) return;
 
         Location loc = event.getLocation();
-        if (loc.getWorld() == null) return;
+        org.bukkit.World world = loc.getWorld();
+        if (world == null) return;
 
-        long tick = loc.getWorld().getFullTime();
+        long tick = org.bukkit.Bukkit.getCurrentTick();
         if (tick != currentTick) {
             currentTick = tick;
             recentExplosionLocations.clear();
@@ -52,8 +53,7 @@ public class TNTOptimizer implements Listener {
 
         int count = explosionsThisTick.incrementAndGet();
 
-        // 1. Water check: TNT exploding in water deals 0 block damage in vanilla.
-        // Clearing blockList bypasses 1,352 expensive raycasts per primed TNT in cannon water chambers!
+        // 1. Water check: TNT exploding in water deals 0 block damage in vanilla
         Block block = loc.getBlock();
         if (block.isLiquid() || block.getType().name().contains("WATER") || block.getType().name().contains("BUBBLE")) {
             event.blockList().clear();
@@ -63,7 +63,7 @@ public class TNTOptimizer implements Listener {
         // 2. Explosion density caching:
         // When dozens of TNT explode in the exact same 2-block radius in the same tick,
         // subsequent explosions occur inside already-destroyed air blocks.
-        long posKey = getExplosionKey(loc.getBlockX() >> 1, loc.getBlockY() >> 1, loc.getBlockZ() >> 1);
+        long posKey = getExplosionKey(world, loc.getBlockX() >> 1, loc.getBlockY() >> 1, loc.getBlockZ() >> 1);
         if (recentExplosionLocations.contains(posKey)) {
             event.blockList().clear();
             return;
@@ -89,7 +89,13 @@ public class TNTOptimizer implements Listener {
         }
     }
 
-    private static long getExplosionKey(int x, int y, int z) {
+    public static long getExplosionKey(org.bukkit.World world, int x, int y, int z) {
+        long worldHash = world != null ? (world.getUID().getMostSignificantBits() ^ world.getUID().getLeastSignificantBits()) : 0L;
+        long pos = (((long) x & 0x3FFFFFF) << 38) | (((long) z & 0x3FFFFFF) << 12) | ((long) y & 0xFFF);
+        return pos ^ (worldHash * 31L);
+    }
+
+    public static long getExplosionKey(int x, int y, int z) {
         return (((long) x & 0x3FFFFFF) << 38) | (((long) z & 0x3FFFFFF) << 12) | ((long) y & 0xFFF);
     }
 

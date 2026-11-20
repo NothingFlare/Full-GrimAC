@@ -48,16 +48,17 @@ public class RedstoneOptimizer implements Listener {
 
         Block block = event.getBlock();
         Location loc = block.getLocation();
-        if (loc.getWorld() == null) return;
+        org.bukkit.World world = loc.getWorld();
+        if (world == null) return;
 
-        long tick = loc.getWorld().getFullTime();
+        long tick = org.bukkit.Bukkit.getCurrentTick();
         if (tick != currentTick) {
             currentTick = tick;
             signalCache.clear();
             updateCountCache.clear();
         }
 
-        long posKey = getBlockKey(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+        long posKey = getBlockKey(world, loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
 
         // 2. Lag machine loop throttling: cap hyper-oscillating clock feedback loops
         int count = updateCountCache.getOrDefault(posKey, 0) + 1;
@@ -71,11 +72,17 @@ public class RedstoneOptimizer implements Listener {
         // 3. Deduplication: if exact signal level was already processed at this block in this tick
         Integer cachedSignal = signalCache.get(posKey);
         if (cachedSignal != null && cachedSignal == newCurrent) {
-            event.setNewCurrent(oldCurrent);
+            event.setNewCurrent(newCurrent);
             return;
         }
 
         signalCache.put(posKey, newCurrent);
+    }
+
+    public static long getBlockKey(org.bukkit.World world, int x, int y, int z) {
+        long worldHash = world != null ? (world.getUID().getMostSignificantBits() ^ world.getUID().getLeastSignificantBits()) : 0L;
+        long pos = (((long) x & 0x3FFFFFF) << 38) | (((long) z & 0x3FFFFFF) << 12) | ((long) y & 0xFFF);
+        return pos ^ (worldHash * 31L);
     }
 
     public static long getBlockKey(int x, int y, int z) {

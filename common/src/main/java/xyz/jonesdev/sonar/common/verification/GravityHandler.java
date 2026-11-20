@@ -286,7 +286,7 @@ public final class GravityHandler extends VerificationHandler {
         final double difference = Math.abs(deltaY - predicted);
 
         // Check if the difference between the predicted and actual motion is too large
-        if (difference > 1e-7) {
+        if (difference > 1e-4) {
           failOrShowCaptcha("incorrect gravity: " + predicted + "/ " + deltaY + "/" + y);
         }
 
@@ -303,7 +303,7 @@ public final class GravityHandler extends VerificationHandler {
       // Calculate the difference between the player's Y coordinate and the expected Y coordinate
       final double collisionOffsetY = (PLATFORM_Y_POSITION + blockHeight) - y;
       // Make sure the player is actually colliding with the blocks and not only spoofing ground
-      if (collisionOffsetY != 0) {
+      if (Math.abs(collisionOffsetY) > 1e-4) {
         failOrShowCaptcha("illegal collision: " + collisionOffsetY + "/" + y + "/" + blockHeight);
       }
       // The player has collided with the blocks, go on to the next stage

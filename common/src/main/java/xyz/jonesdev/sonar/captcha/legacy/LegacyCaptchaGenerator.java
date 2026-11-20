@@ -94,7 +94,12 @@ public final class LegacyCaptchaGenerator implements CaptchaGenerator {
         throw new IllegalStateException("Could not read background image", exception);
       }
     }
-    image.createGraphics().drawImage(backgroundImage, 0, 0, Color.WHITE, null);
+    final Graphics2D bgGraphics = image.createGraphics();
+    try {
+      bgGraphics.drawImage(backgroundImage, 0, 0, Color.WHITE, null);
+    } finally {
+      bgGraphics.dispose();
+    }
     return image;
   }
 

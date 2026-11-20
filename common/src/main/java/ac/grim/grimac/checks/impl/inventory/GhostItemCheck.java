@@ -29,7 +29,11 @@ public class GhostItemCheck extends Check implements BlockPlaceListener {
 
     @Override
     public void onBlockPlace(final BlockPlace place) {
-        if (player.disableGrim || player.gamemode == GameMode.CREATIVE || player.gamemode == GameMode.SPECTATOR) {
+        if (!isEnabled() || player.disableGrim || player.gamemode == GameMode.CREATIVE || player.gamemode == GameMode.SPECTATOR) {
+            return;
+        }
+
+        if (!place.isBlock || place.material == null || !place.material.isSolid() || place.material.isAir()) {
             return;
         }
 

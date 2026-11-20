@@ -41,12 +41,16 @@ public final class LoginQueue {
     final int maxQueuePolls = Math.min(players.size(), Sonar.get0().getConfig().getQueue().getMaxQueuePolls());
     // No need to initiate an executor service task if nobody is currently queued
     if (maxQueuePolls <= 0) return;
-    // We need to be cautious here since we don't want any concurrency issues
+    // Atomic per-entry removal prevents duplicate executions across concurrent pool workers
     QUEUE_EXECUTOR.execute(() -> {
-      final var iterator = players.entrySet().iterator();
-      for (int index = 0; index < maxQueuePolls && iterator.hasNext(); index++) {
-        iterator.next().getValue().run();
-        iterator.remove();
+      int polled = 0;
+      for (final InetAddress address : players.keySet()) {
+        if (polled >= maxQueuePolls) break;
+        final Runnable task = players.remove(address);
+        if (task != null) {
+          polled++;
+          task.run();
+        }
       }
     });
   }

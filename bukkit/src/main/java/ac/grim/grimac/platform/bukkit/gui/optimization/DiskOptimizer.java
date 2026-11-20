@@ -59,8 +59,9 @@ public class DiskOptimizer implements Listener {
         }
 
         try {
-            // Run optimizer maintenance every 60 seconds (1200 ticks)
-            schedulerTask = Bukkit.getScheduler().runTaskTimer(GrimACBukkitLoaderPlugin.LOADER, () -> {
+            // Run optimizer maintenance asynchronously every 60 seconds (1200 ticks)
+            // Off-main execution guarantees database SQL queries and file I/O never freeze server ticks
+            schedulerTask = Bukkit.getScheduler().runTaskTimerAsynchronously(GrimACBukkitLoaderPlugin.LOADER, () -> {
                 if (!enabled) return;
 
                 long now = System.currentTimeMillis();
@@ -124,9 +125,6 @@ public class DiskOptimizer implements Listener {
         try {
             // Trim database cache
             runDatabaseMaintenance();
-
-            // Run garbage collection hint to reclaim discarded chunk buffers before OOM
-            System.gc();
         } catch (Throwable ignored) {}
     }
 

@@ -22,6 +22,7 @@ import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.dao.DaoManager;
 import com.j256.ormlite.jdbc.JdbcConnectionSource;
 import com.j256.ormlite.jdbc.JdbcPooledConnectionSource;
+import com.j256.ormlite.stmt.DeleteBuilder;
 import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.support.ConnectionSource;
 import com.j256.ormlite.table.TableUtils;
@@ -51,7 +52,6 @@ public final class VerifiedPlayerController {
   private final Set<String> cache = Collections.synchronizedSet(new HashSet<>());
   private @Nullable ConnectionSource connectionSource;
   private Dao<VerifiedPlayer, Integer> dao;
-  private QueryBuilder<VerifiedPlayer, Integer> queryBuilder;
   @Getter
   private final @NotNull SonarConfiguration.Database.Type cachedDatabaseType;
   private final ExecutorService updateService = Executors.newSingleThreadExecutor();
@@ -111,7 +111,6 @@ public final class VerifiedPlayerController {
       }
 
       dao = DaoManager.createDao(connectionSource, VerifiedPlayer.class);
-      queryBuilder = dao.queryBuilder();
       maximumAge = database.getMaximumAge();
 
       // Make sure to run the clean task and the caching task in the same thread
@@ -153,23 +152,29 @@ public final class VerifiedPlayerController {
   /**
    * Clear all old entries using the given timestamp
    */
-  public void clearOld(final @Range(from = 1, to = 365) int maximumAge,
-                       final boolean removeExisting) throws SQLException {
+  public synchronized void clearOld(final @Range(from = 1, to = 365) int maximumAge,
+                                    final boolean removeExisting) throws SQLException {
+    if (dao == null) return;
     final long timestamp = Instant.now().minus(maximumAge, ChronoUnit.DAYS).getEpochSecond() * 1000L;
+    final Timestamp cutoff = new Timestamp(timestamp);
 
-    final List<VerifiedPlayer> oldEntries = queryBuilder.where()
-      .lt("timestamp", new Timestamp(timestamp))
-      .query();
-
-    if (oldEntries != null && !oldEntries.isEmpty()) {
-      for (final VerifiedPlayer player : oldEntries) {
-        dao.delete(player);
-        if (removeExisting) {
+    if (removeExisting) {
+      final List<VerifiedPlayer> oldEntries = dao.queryBuilder().where()
+        .lt("timestamp", cutoff)
+        .query();
+      if (oldEntries != null) {
+        for (final VerifiedPlayer player : oldEntries) {
           cache.remove(player.getFingerprint());
         }
       }
+    }
+
+    final DeleteBuilder<VerifiedPlayer, Integer> deleteBuilder = dao.deleteBuilder();
+    deleteBuilder.where().lt("timestamp", cutoff);
+    final int deleted = deleteBuilder.delete();
+    if (deleted > 0) {
       Sonar.get0().getLogger().info("Removed {} database entries older than {} days.",
-        oldEntries.size(), maximumAge);
+        deleted, maximumAge);
     }
   }
 
@@ -188,17 +193,11 @@ public final class VerifiedPlayerController {
     }
 
     updateService.execute(() -> {
-      if (connectionSource != null) {
+      if (connectionSource != null && dao != null) {
         try {
-          final List<VerifiedPlayer> verifiedPlayer = queryBuilder.where()
-            .eq("fingerprint", fingerprint)
-            .query();
-
-          if (verifiedPlayer != null) {
-            for (final VerifiedPlayer player : verifiedPlayer) {
-              dao.delete(player);
-            }
-          }
+          final DeleteBuilder<VerifiedPlayer, Integer> deleteBuilder = dao.deleteBuilder();
+          deleteBuilder.where().eq("fingerprint", fingerprint);
+          deleteBuilder.delete();
         } catch (SQLException exception) {
           exception.printStackTrace(System.err);
         }

@@ -13,6 +13,7 @@ import ac.grim.grimac.utils.anticheat.MessageUtil;
 import net.kyori.adventure.text.Component;
 
 import java.lang.reflect.Method;
+import java.util.Locale;
 
 public final class PerformanceProtectionManager {
 
@@ -72,10 +73,10 @@ public final class PerformanceProtectionManager {
             if (tps < lowTpsThreshold) {
                 lowTpsActive = true;
                 lastStateChangeTime = now;
-                String logMsg = String.format("[PerformanceProtection] Server TPS dropped to %.2f (< %.1f). Enabling performance protection mode (throttling checks, disabling bots/inventory).", tps, lowTpsThreshold);
+                String logMsg = String.format(Locale.ROOT, "[PerformanceProtection] Server TPS dropped to %.2f (< %.1f). Enabling performance protection mode (throttling checks, disabling bots/inventory).", tps, lowTpsThreshold);
                 LogUtil.warn(logMsg);
                 if (broadcastToOps) {
-                    broadcastToStaff(String.format("&e[PerformanceProtection] &7Server TPS dropped to &c%.2f &7(< %.1f). Enabling performance protection mode (throttling checks, disabling bots/inventory).", tps, lowTpsThreshold));
+                    broadcastToStaff(String.format(Locale.ROOT, "<yellow>[PerformanceProtection] <gray>Server TPS dropped to <red>%.2f <gray>(< %.1f). Enabling performance protection mode (throttling checks, disabling bots/inventory).", tps, lowTpsThreshold));
                 }
             }
         } else {
@@ -83,10 +84,10 @@ public final class PerformanceProtectionManager {
             if (tps >= recoverTpsThreshold && tps >= prevTps && (now - lastStateChangeTime > 3000)) {
                 lowTpsActive = false;
                 lastStateChangeTime = now;
-                String logMsg = String.format("[PerformanceProtection] Server TPS recovered to %.2f (>= %.1f). Performance protection mode disabled, all checks re-enabled.", tps, recoverTpsThreshold);
+                String logMsg = String.format(Locale.ROOT, "[PerformanceProtection] Server TPS recovered to %.2f (>= %.1f). Performance protection mode disabled, all checks re-enabled.", tps, recoverTpsThreshold);
                 LogUtil.info(logMsg);
                 if (broadcastToOps) {
-                    broadcastToStaff(String.format("&e[PerformanceProtection] &7Server TPS recovered to &a%.2f &7(>= %.1f). Performance protection mode disabled, all checks re-enabled.", tps, recoverTpsThreshold));
+                    broadcastToStaff(String.format(Locale.ROOT, "<yellow>[PerformanceProtection] <gray>Server TPS recovered to <green>%.2f <gray>(>= %.1f). Performance protection mode disabled, all checks re-enabled.", tps, recoverTpsThreshold));
                 }
             }
         }

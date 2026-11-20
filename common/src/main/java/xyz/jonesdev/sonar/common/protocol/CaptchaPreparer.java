@@ -34,8 +34,8 @@ public class CaptchaPreparer {
   private final ExecutorService PREPARATION_SERVICE = Executors.newSingleThreadExecutor();
   private final Random RANDOM = new Random();
 
-  private MapCaptchaInfo[] cached;
-  private int preparedAmount;
+  private volatile MapCaptchaInfo[] cached;
+  private volatile int preparedAmount;
 
   public void prepare() {
     // Make sure we're not preparing when Sonar is already preparing answers
@@ -51,20 +51,22 @@ public class CaptchaPreparer {
     final int precomputeAmount = Sonar.get0().getConfig().getVerification().getMap().getPrecomputeAmount();
     final char[] alphabet = Sonar.get0().getConfig().getVerification().getMap().getAlphabet().toCharArray();
 
+    final MapCaptchaInfo[] newCache = new MapCaptchaInfo[precomputeAmount];
+    cached = newCache;
     preparedAmount = 0;
-    cached = new MapCaptchaInfo[precomputeAmount];
 
     // Prepare everything asynchronously
     PREPARATION_SERVICE.execute(() -> {
-      for (preparedAmount = 0; preparedAmount < precomputeAmount;) {
+      for (int i = 0; i < precomputeAmount; i++) {
         // Generate CAPTCHA
         final char[] answer = new char[3 + RANDOM.nextInt(2)];
         for (int j = 0; j < answer.length; j++) {
           answer[j] = alphabet[RANDOM.nextInt(alphabet.length)];
         }
         final BufferedImage image = Sonar.get0().getAntiBot().getCaptchaGenerator().createImage(answer);
-        // Convert and cache converted Minecraft map bytes
-        cached[preparedAmount++] = new MapCaptchaInfo(new String(answer), MapColorPalette.imageToBuffer(image));
+        // Write item into array before incrementing visible count
+        newCache[i] = new MapCaptchaInfo(new String(answer), MapColorPalette.imageToBuffer(image));
+        preparedAmount = i + 1;
       }
 
       Sonar.get0().getLogger().info("Finished preparing {} CAPTCHA answers ({}s)!", preparedAmount, timer);
@@ -73,11 +75,16 @@ public class CaptchaPreparer {
   }
 
   public boolean isCaptchaAvailable() {
-    return preparedAmount > 0 && cached != null && cached[0] != null;
+    final MapCaptchaInfo[] current = cached;
+    return preparedAmount > 0 && current != null && current[0] != null;
   }
 
   public MapCaptchaInfo getRandomCaptcha() {
-    // Give the player a random CAPTCHA out of the ones that we've already prepared
-    return cached[RANDOM.nextInt(preparedAmount)];
+    final MapCaptchaInfo[] current = cached;
+    final int count = preparedAmount;
+    if (current == null || count <= 0) {
+      throw new IllegalStateException("No CAPTCHA answers prepared yet");
+    }
+    return current[RANDOM.nextInt(Math.min(count, current.length))];
   }
 }
