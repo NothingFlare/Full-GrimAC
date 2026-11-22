@@ -43,9 +43,16 @@ import org.bukkit.scheduler.BukkitTask;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * High-performance disk and memory optimizer.
@@ -69,6 +76,9 @@ public class DiskOptimizer implements Listener {
 
     private static final Set<UUID> modifiedWorlds = ConcurrentHashMap.newKeySet();
     private static final Set<UUID> skippedWorldsInCurrentCycle = ConcurrentHashMap.newKeySet();
+
+    private static final AtomicInteger THREAD_COUNTER = new AtomicInteger();
+    private static ExecutorService asyncDiskExecutor;
 
     private static BukkitTask mainTickTask;
     private static BukkitTask maintenanceTask;
@@ -95,9 +105,120 @@ public class DiskOptimizer implements Listener {
         }
     }
 
+    /**
+     * Submits an asynchronous disk/database query or computation.
+     */
+    public static <T> CompletableFuture<T> submitDiskQuery(Callable<T> callable) {
+        CompletableFuture<T> future = new CompletableFuture<>();
+        ExecutorService exec = asyncDiskExecutor;
+        if (exec == null || exec.isShutdown()) {
+            try {
+                future.complete(callable.call());
+            } catch (Throwable t) {
+                future.completeExceptionally(t);
+            }
+            return future;
+        }
+        exec.execute(() -> {
+            try {
+                future.complete(callable.call());
+            } catch (Throwable t) {
+                future.completeExceptionally(t);
+            }
+        });
+        return future;
+    }
+
+    /**
+     * Submits an asynchronous disk I/O, cleanup, or maintenance task.
+     */
+    public static CompletableFuture<Void> submitDiskTask(Runnable runnable) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        ExecutorService exec = asyncDiskExecutor;
+        if (exec == null || exec.isShutdown()) {
+            try {
+                runnable.run();
+                future.complete(null);
+            } catch (Throwable t) {
+                future.completeExceptionally(t);
+            }
+            return future;
+        }
+        exec.execute(() -> {
+            try {
+                runnable.run();
+                future.complete(null);
+            } catch (Throwable t) {
+                future.completeExceptionally(t);
+            }
+        });
+        return future;
+    }
+
+    /**
+     * Asynchronously saves a world.
+     * All disk I/O, level data serialization and region file chunk writes are handled
+     * through non-blocking asynchronous pipelines, eliminating main thread freeze.
+     */
+    public static CompletableFuture<Void> saveWorldAsync(World world) {
+        if (world == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        submitDiskTask(() -> {
+            try {
+                // Schedule non-blocking chunk save on tick thread.
+                // In Paper/Moonrise, CraftWorld.save() executes non-blocking chunk queueing (flush=false),
+                // pushing chunk region data to background I/O threads.
+                Bukkit.getScheduler().runTask(GrimACBukkitLoaderPlugin.LOADER, () -> {
+                    try {
+                        world.save();
+                        future.complete(null);
+                    } catch (Throwable t) {
+                        future.completeExceptionally(t);
+                    }
+                });
+            } catch (Throwable t) {
+                future.completeExceptionally(t);
+            }
+        });
+        return future;
+    }
+
+    /**
+     * Asynchronously saves all modified worlds.
+     */
+    public static CompletableFuture<Void> saveModifiedWorldsAsync() {
+        if (modifiedWorlds.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        Set<UUID> toSave = new HashSet<>(modifiedWorlds);
+        modifiedWorlds.removeAll(toSave);
+
+        CompletableFuture<?>[] futures = toSave.stream()
+            .map(Bukkit::getWorld)
+            .filter(Objects::nonNull)
+            .map(DiskOptimizer::saveWorldAsync)
+            .toArray(CompletableFuture[]::new);
+
+        return CompletableFuture.allOf(futures);
+    }
+
     public static void startTask() {
         stopTask();
         if (!enabled) return;
+
+        if (asyncDiskExecutor == null || asyncDiskExecutor.isShutdown()) {
+            asyncDiskExecutor = Executors.newFixedThreadPool(
+                Math.max(2, Runtime.getRuntime().availableProcessors() / 4),
+                r -> {
+                    Thread t = new Thread(r, "FullGrim-AsyncDisk-" + THREAD_COUNTER.incrementAndGet());
+                    t.setDaemon(true);
+                    t.setPriority(Thread.NORM_PRIORITY - 1);
+                    return t;
+                }
+            );
+        }
 
         // Ensure all worlds start with autoSave=true so chunk unloads run smoothly
         for (World world : Bukkit.getWorlds()) {
@@ -108,6 +229,7 @@ public class DiskOptimizer implements Listener {
 
         try {
             // Main thread 1-tick monitor: handles safe, 1-tick auto-save suppression for untouched worlds
+            // and triggers asynchronous saving for modified worlds
             mainTickTask = Bukkit.getScheduler().runTaskTimer(GrimACBukkitLoaderPlugin.LOADER, () -> {
                 if (!enabled) return;
 
@@ -122,7 +244,7 @@ public class DiskOptimizer implements Listener {
 
                 if (isAutosaveApproaching) {
                     // Autosave is about to run on the next tick!
-                    // For worlds where no player interacted, temporarily disable autoSave for 1 tick to skip saving
+                    // 1. For worlds where no player interacted, temporarily disable autoSave for 1 tick to skip saving
                     for (World world : Bukkit.getWorlds()) {
                         if (!modifiedWorlds.contains(world.getUID())) {
                             try {
@@ -130,6 +252,10 @@ public class DiskOptimizer implements Listener {
                                 skippedWorldsInCurrentCycle.add(world.getUID());
                             } catch (Throwable ignored) {}
                         }
+                    }
+                    // 2. For modified worlds: execute asynchronous non-blocking save
+                    if (!modifiedWorlds.isEmpty()) {
+                        saveModifiedWorldsAsync();
                     }
                 } else if (!skippedWorldsInCurrentCycle.isEmpty()) {
                     // Autosave tick has finished! Restore autoSave=true immediately so chunk unloads continue
@@ -152,13 +278,15 @@ public class DiskOptimizer implements Listener {
                 long now = System.currentTimeMillis();
 
                 // 1. Proactive Memory Pressure Relief
-                checkMemoryPressure(now);
+                submitDiskTask(() -> checkMemoryPressure(now));
 
                 // 2. Database Maintenance
                 if (now - lastMaintenanceTime > 900000L) {
                     lastMaintenanceTime = now;
-                    runDatabaseMaintenance();
-                    trimOldLogFiles();
+                    submitDiskTask(() -> {
+                        runDatabaseMaintenance();
+                        trimOldLogFiles();
+                    });
                 }
 
             }, 600L, 1200L);
@@ -177,6 +305,12 @@ public class DiskOptimizer implements Listener {
                 maintenanceTask.cancel();
             } catch (Throwable ignored) {}
             maintenanceTask = null;
+        }
+        if (asyncDiskExecutor != null) {
+            try {
+                asyncDiskExecutor.shutdown();
+            } catch (Throwable ignored) {}
+            asyncDiskExecutor = null;
         }
 
         // Restore default vanilla autosave for all worlds

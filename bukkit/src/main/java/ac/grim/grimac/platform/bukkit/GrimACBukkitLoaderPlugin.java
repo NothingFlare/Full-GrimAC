@@ -147,6 +147,7 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.RedstoneOptimizer(), this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.TNTOptimizer(), this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.DiskOptimizer(), this);
+        Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.gui.optimization.NetworkOptimizer(), this);
         Bukkit.getPluginManager().registerEvents(new ac.grim.grimac.platform.bukkit.listener.ItemDesyncFixListener(), this);
 
         // Initialize Sonar AntiBot & Captcha System
@@ -172,6 +173,7 @@ public final class GrimACBukkitLoaderPlugin extends JavaPlugin implements Platfo
         }
         try {
             ac.grim.grimac.platform.bukkit.gui.optimization.DiskOptimizer.onServerShutdown();
+            ac.grim.grimac.platform.bukkit.gui.optimization.NetworkOptimizer.onServerShutdown();
         } catch (Throwable ignored) {}
         xyz.jonesdev.sonar.bukkit.antibot.BukkitInjector.uninject();
         GrimAPI.INSTANCE.stop();

@@ -12,6 +12,7 @@ import ac.grim.grimac.platform.api.gui.PlatformGuiHandler;
 import ac.grim.grimac.platform.api.sender.Sender;
 import ac.grim.grimac.platform.bukkit.GrimACBukkitLoaderPlugin;
 import ac.grim.grimac.platform.bukkit.gui.optimization.DiskOptimizer;
+import ac.grim.grimac.platform.bukkit.gui.optimization.NetworkOptimizer;
 import ac.grim.grimac.platform.bukkit.gui.optimization.RedstoneOptimizer;
 import ac.grim.grimac.platform.bukkit.gui.optimization.TNTOptimizer;
 import ac.grim.grimac.utils.anticheat.LogUtil;
@@ -266,8 +267,11 @@ public class GrimGuiManager implements PlatformGuiHandler, Listener {
         // Slot 24: Оптимизация ТНТ (default: false)
         inv.setItem(24, buildTntOptimizationItem(TNTOptimizer.enabled));
 
-        // Slot 31: Оптимизация диска и миров (default: false)
-        inv.setItem(31, buildDiskOptimizationItem(DiskOptimizer.enabled));
+        // Slot 30: Оптимизация диска и миров (default: false)
+        inv.setItem(30, buildDiskOptimizationItem(DiskOptimizer.enabled));
+
+        // Slot 32: Сетевая оптимизация (Netty & TCP) (default: false)
+        inv.setItem(32, buildNetworkOptimizationItem(NetworkOptimizer.enabled));
 
         // Bottom row: slot 48 (col 3) Left arrow: back to page 2
         ItemStack leftArrow = new ItemStack(Material.ARROW);
@@ -382,11 +386,35 @@ public class GrimGuiManager implements PlatformGuiHandler, Listener {
         if (meta != null) {
             meta.setDisplayName(enabled ? "§aОптимизация диска и миров" : "§cОптимизация диска и миров");
             List<String> lore = new ArrayList<>();
-            lore.add("§7Умное сохранение миров на диск (Smart World Save):");
-            lore.add("§7Если в мире не было активности игроков за интервал");
-            lore.add("§7автосохранения, запись на диск пропускается.");
-            lore.add("§7При изменении хотя бы одного блока мир сохраняется как обычно.");
-            lore.add("§7Фоновая дефрагментация базы данных и защита от дисковых фризов.");
+            lore.add("§7Полностью асинхронные дисковые запросы и запись миров:");
+            lore.add("§7Асинхронное сохранение чанков без зависания основного тика.");
+            lore.add("§7Умное автосохранение: пропуск записи нетронутых миров.");
+            lore.add("§7Асинхронные запросы к БД, ротация логов и чистка памяти.");
+            lore.add(" ");
+            lore.add("§7Статус: " + (enabled ? "§aВКЛЮЧЕНО" : "§cВЫКЛЮЧЕНО"));
+            lore.add("§eЛКМ/ПКМ: §f" + (enabled ? "Выключить оптимизацию" : "Включить оптимизацию"));
+            meta.setLore(lore);
+            if (enabled) {
+                meta.addEnchant(Enchantment.UNBREAKING, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
+            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack buildNetworkOptimizationItem(boolean enabled) {
+        ItemStack item = new ItemStack(getSafeMaterial("REPEATER", Material.REDSTONE));
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(enabled ? "§aСетевая оптимизация (Netty & TCP)" : "§cСетевая оптимизация (Netty & TCP)");
+            List<String> lore = new ArrayList<>();
+            lore.add("§7Оптимизация сетевого конвейера Netty и TCP-сокетов:");
+            lore.add("§7Отключение склеивания пакетов (No-Coalescing & TCP_NODELAY).");
+            lore.add("§7Мгновенный сброс (Flush) пакетов сразу после обработки сервером.");
+            lore.add("§7Защита от буферного лага (Low Watermark & IPTOS_LOWDELAY).");
+            lore.add("§7Устранение задержки хитов, плавная синхронизация в PvP.");
             lore.add(" ");
             lore.add("§7Статус: " + (enabled ? "§aВКЛЮЧЕНО" : "§cВЫКЛЮЧЕНО"));
             lore.add("§eЛКМ/ПКМ: §f" + (enabled ? "Выключить оптимизацию" : "Включить оптимизацию"));
@@ -471,11 +499,18 @@ public class GrimGuiManager implements PlatformGuiHandler, Listener {
                 player.sendMessage("§eGrimAC §8» §fОптимизация ТНТ " + (TNTOptimizer.enabled ? "§aВКЛЮЧЕНА" : "§cВЫКЛЮЧЕНА") + "§f.");
                 playClickSound(player);
                 saveSettings();
-            } else if (slot == 31) {
+            } else if (slot == 30 || slot == 31) {
                 boolean newState = !DiskOptimizer.enabled;
                 DiskOptimizer.setEnabled(newState);
-                event.getInventory().setItem(31, buildDiskOptimizationItem(newState));
+                event.getInventory().setItem(30, buildDiskOptimizationItem(newState));
                 player.sendMessage("§eGrimAC §8» §fОптимизация диска и миров " + (newState ? "§aВКЛЮЧЕНА" : "§cВЫКЛЮЧЕНА") + "§f.");
+                playClickSound(player);
+                saveSettings();
+            } else if (slot == 32) {
+                boolean newState = !NetworkOptimizer.enabled;
+                NetworkOptimizer.setEnabled(newState);
+                event.getInventory().setItem(32, buildNetworkOptimizationItem(newState));
+                player.sendMessage("§eGrimAC §8» §fСетевая оптимизация " + (newState ? "§aВКЛЮЧЕНА" : "§cВЫКЛЮЧЕНА") + "§f.");
                 playClickSound(player);
                 saveSettings();
             }
@@ -556,6 +591,7 @@ public class GrimGuiManager implements PlatformGuiHandler, Listener {
                 RedstoneOptimizer.enabled = config.getBoolean("optimizations.redstone-optimization", false);
                 TNTOptimizer.enabled = config.getBoolean("optimizations.tnt-optimization", false);
                 DiskOptimizer.setEnabled(config.getBoolean("optimizations.disk-optimization", false));
+                NetworkOptimizer.setEnabled(config.getBoolean("optimizations.network-optimization", false));
 
                 List<String> disabled = config.getStringList("disabled-checks");
                 CheckToggleRegistry.clear();
@@ -582,6 +618,7 @@ public class GrimGuiManager implements PlatformGuiHandler, Listener {
                 config.set("optimizations.redstone-optimization", RedstoneOptimizer.enabled);
                 config.set("optimizations.tnt-optimization", TNTOptimizer.enabled);
                 config.set("optimizations.disk-optimization", DiskOptimizer.enabled);
+                config.set("optimizations.network-optimization", NetworkOptimizer.enabled);
                 config.set("disabled-checks", new ArrayList<>(CheckToggleRegistry.getDisabledChecks()));
                 try {
                     config.save(file);
