@@ -54,7 +54,8 @@ public class Reach extends Check implements PacketReceiveListener {
     private static final List<EntityType> blacklisted = Arrays.asList(
             EntityTypes.BOAT,
             EntityTypes.CHEST_BOAT,
-            EntityTypes.SHULKER);
+            EntityTypes.SHULKER,
+            EntityTypes.SHULKER_BULLET);
     private static final CheckResult NONE = new CheckResult(ResultType.NONE, 0, 0, false);
     // Only one flag per reach attack, per entity, per tick.
     // We store position because lastX isn't reliable on teleports.
@@ -110,6 +111,12 @@ public class Reach extends Check implements PacketReceiveListener {
 
         // Dead entities cause false flags (https://github.com/GrimAnticheat/Grim/issues/546)
         if (entity.isDead) return;
+
+        // Exempt blacklisted entities (Boats, Shulker with dynamic lid peek, Shulker Bullet)
+        if (blacklisted.contains(entity.getType())) return;
+
+        // Reach check only applies to living entities and End Crystals (matches checkReach line 335)
+        if (!entity.isLivingEntity && entity.getType() != EntityTypes.END_CRYSTAL) return;
 
         // TODO: Remove when in front of via
         if (entity.getType() == EntityTypes.ARMOR_STAND && player.getClientVersion().isOlderThan(ClientVersion.V_1_8))
