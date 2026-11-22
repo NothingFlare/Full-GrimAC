@@ -167,6 +167,7 @@ public class DiskOptimizer implements Listener {
         CompletableFuture<Void> future = new CompletableFuture<>();
         submitDiskTask(() -> {
             try {
+                suppressPaperSaveWarning();
                 // Schedule non-blocking chunk save on tick thread.
                 // In Paper/Moonrise, CraftWorld.save() executes non-blocking chunk queueing (flush=false),
                 // pushing chunk region data to background I/O threads.
@@ -220,6 +221,8 @@ public class DiskOptimizer implements Listener {
             );
         }
 
+        suppressPaperSaveWarning();
+
         // Ensure all worlds start with autoSave=true so chunk unloads run smoothly
         for (World world : Bukkit.getWorlds()) {
             try {
@@ -228,8 +231,8 @@ public class DiskOptimizer implements Listener {
         }
 
         try {
-            // Main thread 1-tick monitor: handles safe, 1-tick auto-save suppression for untouched worlds
-            // and triggers asynchronous saving for modified worlds
+            // Main thread 1-tick monitor: handles safe, 1-tick auto-save suppression for untouched worlds.
+            // Modified worlds retain autoSave=true and are naturally saved by Paper's asynchronous Moonrise system.
             mainTickTask = Bukkit.getScheduler().runTaskTimer(GrimACBukkitLoaderPlugin.LOADER, () -> {
                 if (!enabled) return;
 
@@ -244,7 +247,8 @@ public class DiskOptimizer implements Listener {
 
                 if (isAutosaveApproaching) {
                     // Autosave is about to run on the next tick!
-                    // 1. For worlds where no player interacted, temporarily disable autoSave for 1 tick to skip saving
+                    // For worlds where no player interacted, temporarily disable autoSave for 1 tick to skip saving.
+                    // Modified worlds remain autoSave=true and will be saved on the autosave tick by the server.
                     for (World world : Bukkit.getWorlds()) {
                         if (!modifiedWorlds.contains(world.getUID())) {
                             try {
@@ -252,10 +256,6 @@ public class DiskOptimizer implements Listener {
                                 skippedWorldsInCurrentCycle.add(world.getUID());
                             } catch (Throwable ignored) {}
                         }
-                    }
-                    // 2. For modified worlds: execute asynchronous non-blocking save
-                    if (!modifiedWorlds.isEmpty()) {
-                        saveModifiedWorldsAsync();
                     }
                 } else if (!skippedWorldsInCurrentCycle.isEmpty()) {
                     // Autosave tick has finished! Restore autoSave=true immediately so chunk unloads continue
@@ -597,6 +597,15 @@ public class DiskOptimizer implements Listener {
                     }
                 }
             }
+        } catch (Throwable ignored) {}
+    }
+
+    private static void suppressPaperSaveWarning() {
+        try {
+            Object server = Bukkit.getServer();
+            Field field = server.getClass().getDeclaredField("printSaveWarning");
+            field.setAccessible(true);
+            field.setBoolean(server, true);
         } catch (Throwable ignored) {}
     }
 }
