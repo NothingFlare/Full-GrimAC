@@ -7,7 +7,7 @@
 [![Minecraft Version](https://img.shields.io/badge/Minecraft-1.8--1.21.11+-2b2b2b.svg?style=flat-square)](https://papermc.io)
 [![Java Version](https://img.shields.io/badge/Java-17+-2b2b2b.svg?style=flat-square)](https://www.oracle.com/java/)
 [![Folia](https://img.shields.io/badge/Folia-Supported-2b2b2b.svg?style=flat-square)](https://papermc.io/software/folia)
-[![Release](https://img.shields.io/badge/Release-2.0-2b2b2b.svg?style=flat-square)]()
+[![Release](https://img.shields.io/badge/Release-2.1-2b2b2b.svg?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-GPL--3.0-2b2b2b.svg?style=flat-square)](LICENSE)
 
 **Languages / Языки:** [English](#full-grimac) • [Русский](#full-grimac-русский)
@@ -194,7 +194,7 @@ Full GrimAC includes built-in multi-language translations located in `plugins/Fu
 
 ## Installation
 
-1. Download `FullGrimAC-2.0.jar` from the release section.
+1. Download `FullGrimAC-2.1.jar` from the release section.
 2. Place the jar file into your server's `plugins/` directory.
 3. Start or restart the server to generate default configurations.
 4. Customize `plugins/FullGrimAC/config.yml` and `plugins/FullGrimAC/sonar/config.yml` according to your server environment.
@@ -218,7 +218,7 @@ cd Full-GrimAC
 
 The resulting compiled binary will be located in:
 ```text
-bukkit/build/libs/FullGrimAC-2.0.jar
+bukkit/build/libs/FullGrimAC-2.1.jar
 ```
 
 ---
@@ -253,7 +253,7 @@ For full license terms and conditions, refer to the [LICENSE](LICENSE) file.
 [![Версия Minecraft](https://img.shields.io/badge/Minecraft-1.8--1.21.11+-2b2b2b.svg?style=flat-square)](https://papermc.io)
 [![Версия Java](https://img.shields.io/badge/Java-17+-2b2b2b.svg?style=flat-square)](https://www.oracle.com/java/)
 [![Folia](https://img.shields.io/badge/Folia-Поддерживается-2b2b2b.svg?style=flat-square)](https://papermc.io/software/folia)
-[![Релиз](https://img.shields.io/badge/Релиз-2.0-2b2b2b.svg?style=flat-square)]()
+[![Релиз](https://img.shields.io/badge/Релиз-2.1-2b2b2b.svg?style=flat-square)]()
 [![Лицензия](https://img.shields.io/badge/Лицензия-GPL--3.0-2b2b2b.svg?style=flat-square)](LICENSE)
 
 **Языки / Languages:** [English](#full-grimac) • [Русский](#full-grimac-русский)
@@ -440,7 +440,7 @@ Full GrimAC поддерживает встроенные многоязычны
 
 ## Установка
 
-1. Скачайте `FullGrimAC-2.0.jar` из раздела релизов.
+1. Скачайте `FullGrimAC-2.1.jar` из раздела релизов.
 2. Поместите jar-файл в папку `plugins/` вашего сервера.
 3. Запустите или перезапустите сервер для генерации стандартных конфигураций.
 4. Настройте файлы `plugins/FullGrimAC/config.yml` и `plugins/FullGrimAC/sonar/config.yml` под требования вашего проекта.
@@ -464,7 +464,7 @@ cd Full-GrimAC
 
 Скомпилированный файл плагина будет находиться по пути:
 ```text
-bukkit/build/libs/FullGrimAC-2.0.jar
+bukkit/build/libs/FullGrimAC-2.1.jar
 ```
 
 ---
