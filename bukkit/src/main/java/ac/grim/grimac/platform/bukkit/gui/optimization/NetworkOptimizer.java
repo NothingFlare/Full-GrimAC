@@ -31,12 +31,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * Advanced Netty and TCP Network Optimizer.
  *
  * Features:
- * - Anti-Coalescing: Enforces TCP_NODELAY (Nagle's algorithm disabled) to eliminate packet clumping.
- * - Fast Flush: Injects outbound handler that immediately flushes packets upon generation by the server,
- *   bypassing tick-boundary batching and flush consolidation delays.
- * - Low Latency Routing: Sets IP_TOS (0x10 / IPTOS_LOWDELAY) for minimal network transfer jitter.
- * - Anti-Bufferbloat: Tunes Netty channel WriteBufferWaterMark (16KB / 64KB) to prevent bloated queues.
+ * - Anti-Coalescing: Enforces kernel-level TCP_NODELAY (Nagle's algorithm disabled) to eliminate
+ *   packet clumping and segment buffering delay across TCP stacks.
+ * - Optimized Buffer Watermarks: Configures Netty channel WriteBufferWaterMark (256KB low / 1024KB high)
+ *   to eliminate false channel write-throttling during chunk bursts and high entity counts.
+ * - Tuned Socket Buffers: Allocates 256KB SO_SNDBUF and SO_RCVBUF to prevent packet drops and bufferbloat.
  * - SO_KEEPALIVE: Prevents dead TCP hangs and connection drops.
+ * - Zero EventLoop Contention: Avoids per-packet syscall flushing to maintain ultra-low ping.
  */
 public class NetworkOptimizer implements Listener {
 
@@ -71,71 +72,46 @@ public class NetworkOptimizer implements Listener {
     }
 
     /**
-     * Outbound Netty handler that immediately flushes packets to the OS socket.
-     * Prevents Netty and Paper from buffering/coalescing packets across server ticks.
-     */
-    @ChannelHandler.Sharable
-    public static class FastFlushOutboundHandler extends ChannelOutboundHandlerAdapter {
-        public static final FastFlushOutboundHandler INSTANCE = new FastFlushOutboundHandler();
-
-        @Override
-        public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-            // Write and flush directly: pushes packet into TCP socket without waiting for tick end
-            ctx.write(msg, promise);
-            ctx.flush();
-        }
-    }
-
-    /**
-     * Applies TCP socket options and Netty immediate-flush handler to a connection channel.
+     * Applies TCP socket options and tuned Netty buffer watermarks to a connection channel.
+     * Disables Nagle's algorithm (TCP_NODELAY) at the OS kernel level without choking
+     * Netty's EventLoop with per-packet syscall flushes.
      */
     public static void optimizeChannel(Channel channel) {
         if (channel == null || !channel.isOpen()) return;
 
         channel.eventLoop().execute(() -> {
             try {
-                // 1. Socket Options: Disable Nagle's algorithm and enable low-delay TOS
+                // 1. Socket Options: Disable Nagle's algorithm and tune buffers
                 ChannelConfig config = channel.config();
                 if (config instanceof SocketChannelConfig socketConfig) {
                     socketConfig.setTcpNoDelay(true);
                     socketConfig.setKeepAlive(true);
                     try {
-                        socketConfig.setTrafficClass(0x10); // IPTOS_LOWDELAY
+                        socketConfig.setSendBufferSize(256 * 1024);
+                        socketConfig.setReceiveBufferSize(256 * 1024);
                     } catch (Throwable ignored) {}
-                    socketConfig.setWriteBufferWaterMark(new WriteBufferWaterMark(16 * 1024, 64 * 1024));
+                    socketConfig.setWriteBufferWaterMark(new WriteBufferWaterMark(256 * 1024, 1024 * 1024));
                 } else {
                     config.setOption(ChannelOption.TCP_NODELAY, Boolean.TRUE);
                     config.setOption(ChannelOption.SO_KEEPALIVE, Boolean.TRUE);
                     try {
-                        config.setOption(ChannelOption.IP_TOS, 0x10);
+                        config.setOption(ChannelOption.SO_SNDBUF, 256 * 1024);
+                        config.setOption(ChannelOption.SO_RCVBUF, 256 * 1024);
                     } catch (Throwable ignored) {}
-                    config.setOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(16 * 1024, 64 * 1024));
+                    config.setOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(256 * 1024, 1024 * 1024));
                 }
 
-                // 2. Remove flush consolidation handlers that bundle/delay packets
+                // 2. Remove legacy per-packet flush handler if present to prevent EventLoop starvation
                 ChannelPipeline pipeline = channel.pipeline();
-                for (String name : pipeline.names()) {
-                    ChannelHandler handler = pipeline.get(name);
-                    if (handler != null) {
-                        String cls = handler.getClass().getName().toLowerCase();
-                        if (cls.contains("flushconsolidation") || cls.contains("coalesc")) {
-                            try {
-                                pipeline.remove(name);
-                            } catch (Throwable ignored) {}
-                        }
-                    }
-                }
-
-                // 3. Inject immediate outbound flush handler right at the start of outbound flow
-                if (pipeline.get(HANDLER_NAME) == null) {
-                    pipeline.addFirst(HANDLER_NAME, FastFlushOutboundHandler.INSTANCE);
+                if (pipeline.get(HANDLER_NAME) != null) {
+                    pipeline.remove(HANDLER_NAME);
                 }
             } catch (Throwable ignored) {}
         });
     }
 
     /**
-     * Removes the network optimization handler from a channel.
+     * Removes the network optimization handler and restores default Netty watermarks.
      */
     public static void removeOptimization(Channel channel) {
         if (channel == null || !channel.isOpen()) return;
@@ -145,6 +121,14 @@ public class NetworkOptimizer implements Listener {
                 ChannelPipeline pipeline = channel.pipeline();
                 if (pipeline.get(HANDLER_NAME) != null) {
                     pipeline.remove(HANDLER_NAME);
+                }
+
+                // Restore default buffer watermarks
+                ChannelConfig config = channel.config();
+                if (config instanceof SocketChannelConfig socketConfig) {
+                    socketConfig.setWriteBufferWaterMark(WriteBufferWaterMark.DEFAULT);
+                } else {
+                    config.setOption(ChannelOption.WRITE_BUFFER_WATER_MARK, WriteBufferWaterMark.DEFAULT);
                 }
             } catch (Throwable ignored) {}
         });

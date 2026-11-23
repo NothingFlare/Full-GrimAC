@@ -7,7 +7,7 @@
 [![Minecraft Version](https://img.shields.io/badge/Minecraft-1.8--1.21.11+-2b2b2b.svg?style=flat-square)](https://papermc.io)
 [![Java Version](https://img.shields.io/badge/Java-17+-2b2b2b.svg?style=flat-square)](https://www.oracle.com/java/)
 [![Folia](https://img.shields.io/badge/Folia-Supported-2b2b2b.svg?style=flat-square)](https://papermc.io/software/folia)
-[![Release](https://img.shields.io/badge/Release-2.1-2b2b2b.svg?style=flat-square)]()
+[![Release](https://img.shields.io/badge/Release-2.1.1-2b2b2b.svg?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-GPL--3.0-2b2b2b.svg?style=flat-square)](LICENSE)
 
 **Languages / Языки:** [English](#full-grimac) • [Русский](#full-grimac-русский)
@@ -83,13 +83,14 @@ Building upon the robust foundation of the upstream GrimAC project, Full GrimAC 
   - 3-page interactive chest inventory interface:
     - **Page 1 (1/3)**: Primary combat, movement, and block checks with individual toggles.
     - **Page 2 (2/3)**: Additional packet, vehicle, exploit, and chat checks.
-    - **Page 3 (3/3)**: Server optimization toggles (TPS Protection, Redstone, TNT, Disk).
+    - **Page 3 (3/3)**: Server optimization toggles (TPS Protection, Redstone, TNT, Disk, Network).
   - Master switch in slot 44 (`ALL_CHECKS`) to toggle all checks simultaneously.
   - Instant synchronization for all connected players with asynchronous persistence to `gui-settings.yml`.
 
 - **Server Optimizations & Performance Protection**
   - **Adaptive TPS Protection**: Automatically monitors server TPS. When TPS drops below `< 15.0`, it temporarily throttles heavy checks and phantom bots, restoring full checks when TPS recovers above `17.0`.
   - **Smart Disk & World Save Optimizer (`DiskOptimizer`)**: Eliminates disk save lag by temporarily suspending auto-save on the exact autosave tick only for worlds untouched by players, while keeping chunk unloads running smoothly every tick to prevent memory leaks.
+  - **Netty & TCP Network Optimizer (`NetworkOptimizer`)**: Enforces OS kernel-level anti-coalescing (`TCP_NODELAY`), tuned I/O buffers (256KB), and write watermarks (1MB) to eliminate Nagle's segment buffering delay without EventLoop starvation or ping degradation.
   - **Redstone Clock & Feedback Limiter (`RedstoneOptimizer`)**: Throttles runaway redstone clocks and deduplicates identical signal updates in the same tick.
   - **TNT Physics & Blast Optimizer (`TNTOptimizer`)**: Caches dense multi-TNT blast craters and skips redundant block damage calculations in water chambers.
 
@@ -194,7 +195,7 @@ Full GrimAC includes built-in multi-language translations located in `plugins/Fu
 
 ## Installation
 
-1. Download `FullGrimAC-2.1.jar` from the release section.
+1. Download `FullGrimAC-2.1.1.jar` from the release section.
 2. Place the jar file into your server's `plugins/` directory.
 3. Start or restart the server to generate default configurations.
 4. Customize `plugins/FullGrimAC/config.yml` and `plugins/FullGrimAC/sonar/config.yml` according to your server environment.
@@ -218,7 +219,7 @@ cd Full-GrimAC
 
 The resulting compiled binary will be located in:
 ```text
-bukkit/build/libs/FullGrimAC-2.1.jar
+bukkit/build/libs/FullGrimAC-2.1.1.jar
 ```
 
 ---
@@ -253,7 +254,7 @@ For full license terms and conditions, refer to the [LICENSE](LICENSE) file.
 [![Версия Minecraft](https://img.shields.io/badge/Minecraft-1.8--1.21.11+-2b2b2b.svg?style=flat-square)](https://papermc.io)
 [![Версия Java](https://img.shields.io/badge/Java-17+-2b2b2b.svg?style=flat-square)](https://www.oracle.com/java/)
 [![Folia](https://img.shields.io/badge/Folia-Поддерживается-2b2b2b.svg?style=flat-square)](https://papermc.io/software/folia)
-[![Релиз](https://img.shields.io/badge/Релиз-2.1-2b2b2b.svg?style=flat-square)]()
+[![Релиз](https://img.shields.io/badge/Релиз-2.1.1-2b2b2b.svg?style=flat-square)]()
 [![Лицензия](https://img.shields.io/badge/Лицензия-GPL--3.0-2b2b2b.svg?style=flat-square)](LICENSE)
 
 **Языки / Languages:** [English](#full-grimac) • [Русский](#full-grimac-русский)
@@ -329,13 +330,14 @@ Full GrimAC — это современный симуляционный ант�
   - 3-страничное графическое меню настроек в инвентаре:
     - **Страница 1 (1/3)**: Основные боевые, двигательные и блочные проверки с раздельными переключателями.
     - **Страница 2 (2/3)**: Дополнительные пакетные проверки, транспорт, эксплойты и спам-фильтры чата.
-    - **Страница 3 (3/3)**: Управление оптимизациями сервера (Защита TPS, Редстоун, ТНТ, Диск).
+    - **Страница 3 (3/3)**: Управление оптимизациями сервера (Защита TPS, Редстоун, ТНТ, Диск, Сеть).
   - Мастер-переключатель в слоте 44 (`ALL_CHECKS`) для одновременного включения/выключения всех проверок.
   - Моментальное применение изменений для всех игроков онлайн с сохранением в `gui-settings.yml`.
 
 - **Оптимизации сервера и защита производительности**
   - **Адаптивная защита TPS**: Постоянный мониторинг тиков. При просадке TPS ниже `< 15.0` временно снижается нагрузка ресурсоемких проверок и ботов; при возврате выше `17.0` проверки автоматически возвращаются в полный режим.
   - **Умное сохранение миров (`DiskOptimizer`)**: Устраняет дисковые фризы сервера, временно отключая автосейв на тике сохранения только для тех миров, в которых игроки не совершали действий, при этом сохраняя постоянную выгрузку неиспользуемых чанков каждый тик для защиты от утечек оперативной памяти (OOM).
+  - **Сетевой оптимизатор Netty & TCP (`NetworkOptimizer`)**: Отключает склеивание пакетов (алгоритм Нагла) на уровне ядра ОС (`TCP_NODELAY`), настраивает буферы сокетов (256KB) и пороги очереди записи Netty (1MB) для плавной синхронизации в PvP без зависания потоков EventLoop и без роста пинга.
   - **Ограничитель редстоун-машин (`RedstoneOptimizer`)**: Дросселирует цикличные генераторы импульсов и дедуплицирует повторяющиеся сигналы в пределах одного тика.
   - **Оптимизатор динамита (`TNTOptimizer`)**: Кеширует зоны одновременных взрывов ТНТ и отсекает холостые расчеты урона блокам в воде.
 
@@ -440,7 +442,7 @@ Full GrimAC поддерживает встроенные многоязычны
 
 ## Установка
 
-1. Скачайте `FullGrimAC-2.1.jar` из раздела релизов.
+1. Скачайте `FullGrimAC-2.1.1.jar` из раздела релизов.
 2. Поместите jar-файл в папку `plugins/` вашего сервера.
 3. Запустите или перезапустите сервер для генерации стандартных конфигураций.
 4. Настройте файлы `plugins/FullGrimAC/config.yml` и `plugins/FullGrimAC/sonar/config.yml` под требования вашего проекта.
@@ -464,7 +466,7 @@ cd Full-GrimAC
 
 Скомпилированный файл плагина будет находиться по пути:
 ```text
-bukkit/build/libs/FullGrimAC-2.1.jar
+bukkit/build/libs/FullGrimAC-2.1.1.jar
 ```
 
 ---

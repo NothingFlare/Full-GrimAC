@@ -149,7 +149,7 @@ dependencies {
 
 bukkit {
     name = "FullGrimAC"
-    version = "2.1"
+    version = "2.1.1"
     author = "GrimAC Team & NothingFlare"
     main = "ac.grim.grimac.platform.bukkit.GrimACBukkitLoaderPlugin"
     website = "https://grim.ac/"
@@ -308,7 +308,7 @@ tasks {
     }
 
     shadowJar {
-        archiveFileName.set("FullGrimAC-2.1.jar")
+        archiveFileName.set("FullGrimAC-2.1.1.jar")
         exclude("META-INF/services/javax.annotation.processing.Processor")
         exclude("META-INF/versions/**")
 

@@ -411,9 +411,9 @@ public class GrimGuiManager implements PlatformGuiHandler, Listener {
             meta.setDisplayName(enabled ? "§aСетевая оптимизация (Netty & TCP)" : "§cСетевая оптимизация (Netty & TCP)");
             List<String> lore = new ArrayList<>();
             lore.add("§7Оптимизация сетевого конвейера Netty и TCP-сокетов:");
-            lore.add("§7Отключение склеивания пакетов (No-Coalescing & TCP_NODELAY).");
-            lore.add("§7Мгновенный сброс (Flush) пакетов сразу после обработки сервером.");
-            lore.add("§7Защита от буферного лага (Low Watermark & IPTOS_LOWDELAY).");
+            lore.add("§7Отключение Nagle-склеивания (Kernel TCP_NODELAY).");
+            lore.add("§7Оптимизация буферов (256KB I/O, 1MB High Watermark).");
+            lore.add("§7Минимальный стабильный пинг без зависаний Netty EventLoop.");
             lore.add("§7Устранение задержки хитов, плавная синхронизация в PvP.");
             lore.add(" ");
             lore.add("§7Статус: " + (enabled ? "§aВКЛЮЧЕНО" : "§cВЫКЛЮЧЕНО"));
