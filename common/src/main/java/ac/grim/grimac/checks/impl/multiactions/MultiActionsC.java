@@ -127,33 +127,37 @@ public class MultiActionsC extends Check implements PacketReceiveListener {
 
         movingClicks++;
 
-        // Legitimate ground inertia:
-        // - The first 2 clicks while moving on ground without input are allowed as entry inertia / sliding transition.
-        // - Or if actively decelerating towards a stop.
-        if (!input && (movingClicks <= 2 || isDecelerating)) {
-            return;
-        }
-
-        // Active illegal inventory movement detection:
-        // - Direct input (WASD/jump in GUI is physically impossible in vanilla): immediate flag.
-        // - Sustained active walking on ground (movingClicks >= 3, or accelerating on ground, or sprinting on ground).
-        boolean isAccelerating = (hDistSq > lastHDistSq + 0.005);
-        boolean sustainedWalking = (movingClicks >= 3 || isAccelerating || sprinting);
-
-        if (!input && !sustainedWalking) {
+        // Legitimate ground inertia & entry transition:
+        // Natural deceleration or early entry clicks are allowed as transition regardless of stale knownInput.
+        if (movingClicks <= 2 || isDecelerating) {
             buffer = Math.max(0.0, buffer - 0.5);
             return;
         }
 
-        double increment = input ? 2.5 : (sprinting ? 1.5 : 1.0);
+        // If player is moving below standard walking threshold (~0.187 b/t), decay buffer
+        if (hDistSq < 0.035) {
+            buffer = Math.max(0.0, buffer - 0.5);
+            return;
+        }
+
+        // Active illegal inventory movement detection:
+        // Cheats with InvMove maintain active walking/sprinting speed over sustained clicks (>= 4 clicks)
+        boolean isAccelerating = (hDistSq > lastHDistSq + 0.005);
+        boolean sustainedWalking = (movingClicks >= 4 || isAccelerating || sprinting);
+
+        if (!sustainedWalking) {
+            buffer = Math.max(0.0, buffer - 0.5);
+            return;
+        }
+
+        double increment = sprinting ? 1.5 : 1.0;
         buffer += increment;
 
-        // Require buffer >= 2.5:
-        // - Direct key input (input=true) flags immediately (buffer 2.5).
-        // - Sustained walking on ground (InvMove cheat) gives 2 grace clicks for any boundary edge cases,
-        //   then firmly flags and cancels on the 3rd moving click.
-        if (buffer >= 2.5) {
-            buffer = 2.5;
+        // Require buffer >= 3.5:
+        // Gives proper grace period for legitimate players who entered GUI with momentum,
+        // while firmly catching cheaters who actively walk or sprint through inventory screens.
+        if (buffer >= 3.5) {
+            buffer = 2.0;
             if (flag(V.write(verbose()).bool(sprinting).bool(sneaking).bool(input)) && shouldModifyPackets()) {
                 event.setCancelled(true);
                 player.onPacketCancel();

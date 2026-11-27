@@ -4,6 +4,7 @@ import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.item.ItemBehaviour;
 import ac.grim.grimac.utils.item.ItemBehaviourRegistry;
+import ac.grim.grimac.utils.nmsutil.Materials;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
@@ -50,6 +51,10 @@ public class PacketPlayerDigging extends PacketListenerAbstract {
         final ItemType material = item.getType();
         final ItemBehaviour itemBehaviour = ItemBehaviourRegistry.getItemBehaviour(player, material);
 
+        if (Materials.isSpear(item)) {
+            player.lastSpearUseTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+        }
+
         if (itemBehaviour.canUse(item, player.compensatedWorld, player, hand)) {
             player.packetStateData.slowedByUsingItemTransaction = player.lastTransactionReceived.get();
             player.packetStateData.setSlowedByUsingItem(true);
@@ -70,11 +75,15 @@ public class PacketPlayerDigging extends PacketListenerAbstract {
                 player.packetStateData.setSlowedByUsingItem(false);
                 player.packetStateData.slowedByUsingItemTransaction = player.lastTransactionReceived.get();
 
-                if (wasUsingItem && PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_13)) {
+                if (wasUsingItem) {
                     ItemStack hand = player.inventory.getItemInHand(player.packetStateData.itemInUseHand);
-
-                    if (hand.getType() == ItemTypes.TRIDENT && hand.getEnchantmentLevel(EnchantmentTypes.RIPTIDE) > 0) {
-                        player.packetStateData.tryingToRiptide = true;
+                    if (Materials.isSpear(hand)) {
+                        player.lastSpearUseTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+                    }
+                    if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_13)) {
+                        if (hand.getType() == ItemTypes.TRIDENT && hand.getEnchantmentLevel(EnchantmentTypes.RIPTIDE) > 0) {
+                            player.packetStateData.tryingToRiptide = true;
+                        }
                     }
                 }
             }

@@ -1,11 +1,13 @@
 package ac.grim.grimac.checks.impl.movement;
 
+import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.api.config.ConfigManager;
 import ac.grim.grimac.checks.Check;
 import ac.grim.grimac.checks.CheckData;
 import ac.grim.grimac.checks.type.PostPredictionListener;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.update.PredictionComplete;
+import ac.grim.grimac.utils.nmsutil.Materials;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,6 +30,16 @@ public class NoSlow extends Check implements PostPredictionListener {
 
         // If the player was using an item for certain, and their predicted velocity had a flipped item
         if (player.packetStateData.isSlowedByUsingItem()) {
+            int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+            boolean spearActive = Math.abs(currentTick - player.lastSpearUseTick) <= 45
+                    || (player.packetStateData.itemInUseHand != null && Materials.isSpear(player.inventory.getItemInHand(player.packetStateData.itemInUseHand)));
+            if (spearActive) {
+                reward();
+                flaggedLastTick = false;
+                bestOffset = 1;
+                return;
+            }
+
             // 1.8 users are not slowed the first tick they use an item, strangely
             if (player.getClientVersion().isOlderThanOrEquals(ClientVersion.V_1_8) && didSlotChangeLastTick) {
                 didSlotChangeLastTick = false;

@@ -9,6 +9,7 @@ import ac.grim.grimac.checks.CheckData;
 import ac.grim.grimac.checks.type.PostPredictionListener;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.update.PredictionComplete;
+import ac.grim.grimac.utils.nmsutil.Materials;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,6 +44,17 @@ public class OffsetHandler extends Check implements PostPredictionListener {
         // Exempt minor bubble column elevator vertical simulation discrepancies
         if ((player.pointThreeEstimator.isNearBubbleColumn() || player.uncertaintyHandler.isSteppingNearBubbleColumn)
                 && offset <= 0.085) {
+            advantageGained *= setbackDecayMultiplier;
+            removeOffsetLenience();
+            return;
+        }
+
+        // Exempt minor spear thrust/lunge/charge simulation discrepancies
+        int currentTick = GrimAPI.INSTANCE.getTickManager().currentTick;
+        boolean recentSpearAction = Math.abs(currentTick - player.lastSpearUseTick) <= 45
+                || Materials.isSpear(player.inventory.getHeldItem())
+                || Materials.isSpear(player.inventory.getOffHand());
+        if (recentSpearAction && offset <= 0.035) {
             advantageGained *= setbackDecayMultiplier;
             removeOffsetLenience();
             return;

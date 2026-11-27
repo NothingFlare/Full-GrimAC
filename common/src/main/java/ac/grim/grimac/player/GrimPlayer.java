@@ -139,6 +139,7 @@ public class GrimPlayer implements GrimUser {
     public int riptideSpinAttackTicks;
     public int lastRiptideTick = -100;
     public int lastCollidedWithRiptideTick = -100;
+    public int lastSpearUseTick = -100;
     public int powderSnowFrozenTicks;
     public boolean hasGravity = true;
     public final long joinTime = System.currentTimeMillis();

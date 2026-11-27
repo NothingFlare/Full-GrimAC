@@ -18,6 +18,7 @@ import ac.grim.grimac.utils.data.packetentity.PacketEntitySizeable;
 import ac.grim.grimac.utils.data.packetentity.dragon.PacketEntityEnderDragonPart;
 import ac.grim.grimac.utils.math.Vector3dm;
 import ac.grim.grimac.utils.nmsutil.GetBoundingBox;
+import ac.grim.grimac.utils.nmsutil.Materials;
 import ac.grim.grimac.utils.nmsutil.ReachUtils;
 import ac.grim.grimac.utils.viaversion.ViaVersionUtil;
 import com.github.retrooper.packetevents.PacketEvents;
@@ -179,6 +180,13 @@ public class Reach extends Check implements PacketReceiveListener {
                     hitboxMargin = Math.min(startRange.getHitboxMargin(), currentRange.getHitboxMargin());
                 }
             }
+        }
+
+        boolean holdingSpear = Materials.isSpear(currentStack) || Materials.isSpear(startStack);
+        if (holdingSpear) {
+            hasRange = true;
+            maxReach = Math.max(maxReach, 5.0f);
+            hitboxMargin = Math.max(hitboxMargin, 0.5f);
         }
 
         SimpleCollisionBox targetBox = getTargetBox(entity);

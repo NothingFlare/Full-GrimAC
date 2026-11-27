@@ -22,6 +22,10 @@ public class MultiActionsD extends Check implements PacketReceiveListener {
         if (event.getPacketType() != PacketType.Play.Client.CLOSE_WINDOW) return;
         if (player.serverOpenedInventoryThisTick) return;
 
+        // In 1.21.2+, modern client input packets (PlayerInput) and movement keys can naturally be pressed
+        // at the moment of closing inventory. Exempt modern clients from close-while-moving flag.
+        if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_21_2)) return;
+
         boolean sprinting = MultiActionsC.isVerboseSprinting(player);
         boolean sneaking = MultiActionsC.isVerboseSneaking(player);
         boolean input = MultiActionsC.isVerboseInput(player);

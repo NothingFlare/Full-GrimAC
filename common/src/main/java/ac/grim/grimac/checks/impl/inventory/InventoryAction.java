@@ -45,15 +45,6 @@ public class InventoryAction extends Check implements PacketReceiveListener {
                     InventoryResync.resync(player);
                 }
             }
-
-            // Check if player is currently using an item (charging bow, eating, blocking)
-            if (player.packetStateData.isSlowedByUsingItem()) {
-                if (flag("action=using_item") && shouldModifyPackets()) {
-                    event.setCancelled(true);
-                    player.onPacketCancel();
-                    InventoryResync.resync(player);
-                }
-            }
         } else if (event.getPacketType() == PacketType.Play.Client.ATTACK) {
             handleAttackAfterClick(event);
         } else if (event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY) {
