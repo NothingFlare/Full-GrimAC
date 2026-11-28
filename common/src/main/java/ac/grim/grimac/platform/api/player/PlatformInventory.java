@@ -20,4 +20,12 @@ public interface PlatformInventory {
     ItemStack[] getContents();
 
     String getOpenInventoryKey();
+
+    default ItemStack getItemOnCursor() {
+        return ItemStack.EMPTY;
+    }
+
+    default ItemStack getOpenInventoryItem(int slot) {
+        return ItemStack.EMPTY;
+    }
 }

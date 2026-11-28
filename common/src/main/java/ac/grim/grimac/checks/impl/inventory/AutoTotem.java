@@ -76,7 +76,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                 if (flag("exploit=silent_swap_return, diff=" + swapDiff + "ms") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
-                    InventoryResync.resync(player);
+                    InventoryResync.resync(player, 0, 36 + player.packetStateData.lastSlotSelected, null);
                 }
             }
         }
@@ -105,7 +105,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                 if (flag("exploit=subtick_multiswap, diff=" + diff + "ms") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
-                    InventoryResync.resync(player);
+                    InventoryResync.resync(player, 0, Inventory.SLOT_OFFHAND, null);
                     return;
                 }
             }
@@ -121,7 +121,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                     if (flag("exploit=silent_totem_swap, diff=" + slotDiff + "ms") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
-                        InventoryResync.resync(player);
+                        InventoryResync.resync(player, 0, Inventory.SLOT_OFFHAND, null);
                         return;
                     }
                 }
@@ -138,7 +138,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                     if (flag("exploit=pick_item_swap, total=" + totalTime + "ms") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
-                        InventoryResync.resync(player);
+                        InventoryResync.resync(player, 0, Inventory.SLOT_OFFHAND, null);
                         return;
                     }
                 }
@@ -190,7 +190,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                         if (flag("exploit=instant_totem_transfer, diff=" + touchDiff + "ms") && shouldModifyPackets()) {
                             event.setCancelled(true);
                             player.onPacketCancel();
-                            InventoryResync.resync(player);
+                            InventoryResync.resync(player, click.getWindowId(), slot, carried);
                             return;
                         }
                     }
@@ -214,7 +214,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                     if (flag("exploit=combat_totem_swap, delta=" + attackDelta + "ms") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
-                        InventoryResync.resync(player);
+                        InventoryResync.resync(player, click.getWindowId(), slot, carried);
                         return;
                     }
                 }
@@ -236,7 +236,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                 if (flag("fast_swap=" + elapsed + "ms, min=" + minLegitTime + "ms, ping=" + ping + "ms") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
-                    InventoryResync.resync(player);
+                    InventoryResync.resync(player, 0, Inventory.SLOT_OFFHAND, null);
                 }
                 return true;
             } else if (elapsed >= 2500) {
@@ -257,7 +257,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                     if (flag("fast_swap_rtt=" + elapsed + "ms") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
-                        InventoryResync.resync(player);
+                        InventoryResync.resync(player, 0, Inventory.SLOT_OFFHAND, null);
                     }
                     return true;
                 }

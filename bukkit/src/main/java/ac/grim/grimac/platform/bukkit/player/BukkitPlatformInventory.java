@@ -69,4 +69,27 @@ public class BukkitPlatformInventory implements PlatformInventory {
     public String getOpenInventoryKey() {
         return bukkitPlayer.getOpenInventory().getType().toString();
     }
+
+    @Override
+    public ItemStack getItemOnCursor() {
+        try {
+            org.bukkit.inventory.ItemStack cursor = bukkitPlayer.getItemOnCursor();
+            return cursor != null ? SpigotConversionUtil.fromBukkitItemStack(cursor) : ItemStack.EMPTY;
+        } catch (Exception ignored) {
+            return ItemStack.EMPTY;
+        }
+    }
+
+    @Override
+    public ItemStack getOpenInventoryItem(int slot) {
+        try {
+            org.bukkit.inventory.InventoryView view = bukkitPlayer.getOpenInventory();
+            if (view != null && slot >= 0 && slot < view.countSlots()) {
+                org.bukkit.inventory.ItemStack item = view.getItem(slot);
+                return item != null ? SpigotConversionUtil.fromBukkitItemStack(item) : ItemStack.EMPTY;
+            }
+        } catch (Exception ignored) {
+        }
+        return ItemStack.EMPTY;
+    }
 }

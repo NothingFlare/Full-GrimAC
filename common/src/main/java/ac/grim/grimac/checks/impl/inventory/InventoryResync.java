@@ -9,6 +9,7 @@ package ac.grim.grimac.checks.impl.inventory;
 import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.player.GrimPlayer;
 import com.github.retrooper.packetevents.protocol.item.ItemStack;
+import com.github.retrooper.packetevents.protocol.item.type.ItemTypes;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 
 public final class InventoryResync {
@@ -17,10 +18,16 @@ public final class InventoryResync {
     }
 
     public static void resync(GrimPlayer player) {
+        resync(player, 0, -1, null);
+    }
+
+    public static void resync(GrimPlayer player, int windowId, int slot, ItemStack fallbackItem) {
         if (player == null || player.user == null) return;
 
         try {
-            // 1. Immediately send server-side true items for hands and clear client cursor to prevent phantom items
+            int stateId = player.inventory.stateID;
+
+            // 1. Hands (Main hand and Offhand)
             ItemStack mainHand = player.platformPlayer != null
                     ? player.platformPlayer.getInventory().getItemInHand()
                     : player.inventory.getHeldItem();
@@ -28,19 +35,70 @@ public final class InventoryResync {
                     ? player.platformPlayer.getInventory().getItemInOffHand()
                     : player.inventory.getOffHand();
 
-            int stateId = player.inventory.stateID;
-            // Offhand slot (slot 45)
             player.user.sendPacket(new WrapperPlayServerSetSlot(0, stateId, 45, offHand == null ? ItemStack.EMPTY : offHand));
-            // Held hotbar slot
             player.user.sendPacket(new WrapperPlayServerSetSlot(0, stateId, 36 + player.packetStateData.lastSlotSelected, mainHand == null ? ItemStack.EMPTY : mainHand));
-            // Cursor / Carried slot (-1)
-            player.user.sendPacket(new WrapperPlayServerSetSlot(-1, stateId, -1, ItemStack.EMPTY));
-            player.user.sendPacket(new WrapperPlayServerSetSlot(0, stateId, -1, ItemStack.EMPTY));
+
+            // 2. Cursor item - NEVER blindly clear to EMPTY!
+            // Retrieve server's real cursor item. If player was carrying an item, restore it!
+            ItemStack cursorItem = ItemStack.EMPTY;
+            if (player.platformPlayer != null) {
+                cursorItem = player.platformPlayer.getInventory().getItemOnCursor();
+            }
+            if ((cursorItem == null || cursorItem.isEmpty()) && player.inventory.menu != null) {
+                cursorItem = player.inventory.menu.getCarried();
+            }
+            if ((cursorItem == null || cursorItem.isEmpty()) && fallbackItem != null && !fallbackItem.isEmpty()) {
+                cursorItem = fallbackItem;
+            }
+
+            ItemStack finalCursor = (cursorItem != null && !cursorItem.isEmpty()) ? cursorItem : ItemStack.EMPTY;
+            player.user.sendPacket(new WrapperPlayServerSetSlot(-1, stateId, -1, finalCursor));
+            if (windowId != 0) {
+                player.user.sendPacket(new WrapperPlayServerSetSlot(windowId, stateId, -1, finalCursor));
+            }
+
+            // 3. Specifically restore clicked slot if valid
+            if (slot >= 0) {
+                ItemStack slotItem = ItemStack.EMPTY;
+                if (player.platformPlayer != null) {
+                    slotItem = player.platformPlayer.getInventory().getOpenInventoryItem(slot);
+                }
+                if ((slotItem == null || slotItem.isEmpty()) && player.inventory.menu != null && slot < player.inventory.menu.getSlots().size()) {
+                    slotItem = player.inventory.menu.getSlot(slot).getItem();
+                }
+                if (slotItem != null && !slotItem.isEmpty()) {
+                    player.user.sendPacket(new WrapperPlayServerSetSlot(windowId, stateId, slot, slotItem));
+                }
+            }
+
+            // 4. Forcefully refresh all totem slots to guarantee totems NEVER vanish into ghost items
+            if (player.platformPlayer != null) {
+                ItemStack[] contents = player.platformPlayer.getInventory().getContents();
+                if (contents != null) {
+                    for (int i = 0; i < contents.length; i++) {
+                        ItemStack item = contents[i];
+                        if (item != null && !item.isEmpty() && isTotem(item)) {
+                            int vanillaSlot;
+                            if (i < 9) {
+                                vanillaSlot = i + 36; // Bukkit hotbar 0-8 -> vanilla 36-44
+                            } else if (i < 36) {
+                                vanillaSlot = i; // Bukkit inventory 9-35 -> vanilla 9-35
+                            } else if (i < 40) {
+                                vanillaSlot = 8 - (i - 36); // Bukkit armor 36-39 (boots->8, legs->7, chest->6, helm->5)
+                            } else if (i == 40) {
+                                vanillaSlot = 45; // Bukkit offhand 40 -> vanilla 45
+                            } else {
+                                continue;
+                            }
+                            player.user.sendPacket(new WrapperPlayServerSetSlot(0, stateId, vanillaSlot, item));
+                        }
+                    }
+                }
+            }
         } catch (Exception ignored) {
         }
 
-        // 2. Schedule full Bukkit/Paper updateInventory on the entity thread (Folia safe)
-        // This completely refreshes all slots from the server's authoritative state
+        // 5. Schedule full Bukkit/Paper updateInventory on the entity thread (Folia safe)
         if (player.platformPlayer != null) {
             try {
                 GrimAPI.INSTANCE.getScheduler().getEntityScheduler().execute(
@@ -57,6 +115,17 @@ public final class InventoryResync {
                 );
             } catch (Exception ignored) {
             }
+        }
+    }
+
+    public static boolean isTotem(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || stack.getType() == null) return false;
+        if (stack.getType() == ItemTypes.TOTEM_OF_UNDYING) return true;
+        try {
+            String name = stack.getType().getName().getKey().toLowerCase(java.util.Locale.ROOT);
+            return name.contains("totem");
+        } catch (Exception ignored) {
+            return false;
         }
     }
 }
