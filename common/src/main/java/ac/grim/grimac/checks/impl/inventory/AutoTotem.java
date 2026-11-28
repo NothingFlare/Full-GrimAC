@@ -17,6 +17,7 @@ import com.github.retrooper.packetevents.protocol.item.ItemStack;
 import com.github.retrooper.packetevents.protocol.item.type.ItemTypes;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.protocol.player.DiggingAction;
+import com.github.retrooper.packetevents.protocol.player.GameMode;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow.WindowClickType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientHeldItemChange;
@@ -48,7 +49,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
 
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
-        if (player.disableGrim || event.isCancelled()) return;
+        if (player.disableGrim || player.gamemode == GameMode.CREATIVE || player.gamemode == GameMode.SPECTATOR || event.isCancelled()) return;
 
         // 1. Offhand swap packet (F key in-world)
         if (event.getPacketType() == PacketType.Play.Client.PLAYER_DIGGING) {
@@ -84,6 +85,12 @@ public class AutoTotem extends Check implements PacketReceiveListener {
 
     private void handleOffhandSwap(PacketReceiveEvent event) {
         long now = System.currentTimeMillis();
+
+        if (now < player.packetStateData.inventoryThrottleUntil) {
+            event.setCancelled(true);
+            player.onPacketCancel();
+            return;
+        }
 
         ItemStack mainHand = player.inventory.getHeldItem();
         ItemStack offHand = player.inventory.getOffHand();
@@ -161,6 +168,13 @@ public class AutoTotem extends Check implements PacketReceiveListener {
 
     private void handleWindowClick(PacketReceiveEvent event, WrapperPlayClientClickWindow click) {
         long now = System.currentTimeMillis();
+
+        if (now < player.packetStateData.inventoryThrottleUntil) {
+            event.setCancelled(true);
+            player.onPacketCancel();
+            return;
+        }
+
         int slot = click.getSlot();
         int button = click.getButton();
         WindowClickType clickType = click.getWindowClickType();
@@ -185,12 +199,14 @@ public class AutoTotem extends Check implements PacketReceiveListener {
             } else if (isOffhandSlot) {
                 if (player.packetStateData.lastTotemTouchTime > 0 && player.packetStateData.lastTotemTouchSlot != slot) {
                     long touchDiff = now - player.packetStateData.lastTotemTouchTime;
+                    int originSlot = player.packetStateData.lastTotemTouchSlot;
                     player.packetStateData.lastTotemTouchTime = 0;
                     if (touchDiff >= 0 && touchDiff < 65) {
                         if (flag("exploit=instant_totem_transfer, diff=" + touchDiff + "ms") && shouldModifyPackets()) {
                             event.setCancelled(true);
                             player.onPacketCancel();
-                            InventoryResync.resync(player, click.getWindowId(), slot, carried);
+                            player.packetStateData.inventoryThrottleUntil = now + 400L;
+                            InventoryResync.resyncAndRestore(player, click.getWindowId(), slot, originSlot, carried);
                             return;
                         }
                     }
@@ -211,10 +227,12 @@ public class AutoTotem extends Check implements PacketReceiveListener {
             if (player.packetStateData.lastAttackPacketTime > 0) {
                 long attackDelta = now - player.packetStateData.lastAttackPacketTime;
                 if (attackDelta >= 0 && attackDelta < 60) {
+                    int originSlot = player.packetStateData.lastTotemTouchSlot;
                     if (flag("exploit=combat_totem_swap, delta=" + attackDelta + "ms") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
-                        InventoryResync.resync(player, click.getWindowId(), slot, carried);
+                        player.packetStateData.inventoryThrottleUntil = now + 400L;
+                        InventoryResync.resyncAndRestore(player, click.getWindowId(), slot, originSlot, carried);
                         return;
                     }
                 }
@@ -236,6 +254,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                 if (flag("fast_swap=" + elapsed + "ms, min=" + minLegitTime + "ms, ping=" + ping + "ms") && shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
+                    player.packetStateData.inventoryThrottleUntil = now + 400L;
                     InventoryResync.resync(player, 0, Inventory.SLOT_OFFHAND, null);
                 }
                 return true;
@@ -257,6 +276,7 @@ public class AutoTotem extends Check implements PacketReceiveListener {
                     if (flag("fast_swap_rtt=" + elapsed + "ms") && shouldModifyPackets()) {
                         event.setCancelled(true);
                         player.onPacketCancel();
+                        player.packetStateData.inventoryThrottleUntil = now + 400L;
                         InventoryResync.resync(player, 0, Inventory.SLOT_OFFHAND, null);
                     }
                     return true;

@@ -18,11 +18,34 @@ public final class InventoryResync {
     }
 
     public static void resync(GrimPlayer player) {
-        resync(player, 0, -1, null);
+        resyncAndRestore(player, 0, -1, player != null ? player.packetStateData.lastTotemTouchSlot : -1, null);
     }
 
     public static void resync(GrimPlayer player, int windowId, int slot, ItemStack fallbackItem) {
+        resyncAndRestore(player, windowId, slot, player != null ? player.packetStateData.lastTotemTouchSlot : -1, fallbackItem);
+    }
+
+    public static void resyncAndRestore(GrimPlayer player, int windowId, int slot, int originSlot, ItemStack fallbackItem) {
         if (player == null || player.user == null) return;
+
+        // 1. First priority: restore server cursor item back to its origin slot on the server thread
+        if (player.platformPlayer != null) {
+            try {
+                GrimAPI.INSTANCE.getScheduler().getEntityScheduler().execute(
+                        player.platformPlayer,
+                        GrimAPI.INSTANCE.getGrimPlugin(),
+                        () -> {
+                            try {
+                                player.platformPlayer.restoreCursorToSlot(originSlot);
+                            } catch (Exception ignored) {
+                            }
+                        },
+                        null,
+                        0
+                );
+            } catch (Exception ignored) {
+            }
+        }
 
         try {
             int stateId = player.inventory.stateID;

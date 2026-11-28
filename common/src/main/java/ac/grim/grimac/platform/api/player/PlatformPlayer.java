@@ -44,5 +44,7 @@ public interface PlatformPlayer extends GrimEntity, OfflinePlatformPlayer {
      */
     default void replaceNativePlayer(Object nativePlayerObject) {}
 
+    default void restoreCursorToSlot(int slot) {}
+
     BlockTranslator getBlockTranslator();
 }

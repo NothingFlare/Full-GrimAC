@@ -54,6 +54,7 @@ public class PacketStateData {
     public int lastWindowClickButton = -1;
     public long lastAttackPacketTime = 0;
     public long lastBlockPlacePacketTime = 0;
+    public long inventoryThrottleUntil = 0;
 
     // Ping cohort pattern metrics
     public double currentClickStdDev = 30.0;

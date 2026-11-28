@@ -117,6 +117,33 @@ public class BukkitPlatformPlayer extends BukkitGrimEntity implements PlatformPl
     }
 
     @Override
+    public void restoreCursorToSlot(int slot) {
+        try {
+            org.bukkit.inventory.ItemStack cursor = bukkitPlayer.getItemOnCursor();
+            if (cursor != null && cursor.getType() != org.bukkit.Material.AIR) {
+                org.bukkit.inventory.PlayerInventory inv = bukkitPlayer.getInventory();
+                boolean returned = false;
+                if (slot >= 0 && slot < inv.getSize()) {
+                    org.bukkit.inventory.ItemStack existing = inv.getItem(slot);
+                    if (existing == null || existing.getType() == org.bukkit.Material.AIR) {
+                        inv.setItem(slot, cursor);
+                        bukkitPlayer.setItemOnCursor(null);
+                        returned = true;
+                    }
+                }
+                if (!returned) {
+                    java.util.HashMap<Integer, org.bukkit.inventory.ItemStack> leftover = inv.addItem(cursor);
+                    if (leftover.isEmpty()) {
+                        bukkitPlayer.setItemOnCursor(null);
+                    }
+                }
+            }
+            bukkitPlayer.updateInventory();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    @Override
     public Vector3d getPosition() {
         if (CAN_USE_DIRECT_GETTERS) {
             return new Vector3d(this.bukkitPlayer.getX(), this.bukkitPlayer.getY(), this.bukkitPlayer.getZ());

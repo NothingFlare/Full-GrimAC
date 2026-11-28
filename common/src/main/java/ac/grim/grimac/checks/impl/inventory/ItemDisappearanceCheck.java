@@ -15,6 +15,7 @@ import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.item.ItemStack;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.protocol.player.DiggingAction;
+import com.github.retrooper.packetevents.protocol.player.GameMode;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow.WindowClickType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerDigging;
@@ -35,7 +36,7 @@ public class ItemDisappearanceCheck extends Check implements PacketReceiveListen
 
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
-        if (player.disableGrim) return;
+        if (player.disableGrim || player.gamemode == GameMode.CREATIVE || player.gamemode == GameMode.SPECTATOR) return;
 
         if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW) {
             handleWindowClick(event);
@@ -47,6 +48,13 @@ public class ItemDisappearanceCheck extends Check implements PacketReceiveListen
     }
 
     private void handleWindowClick(PacketReceiveEvent event) {
+        long now = System.currentTimeMillis();
+        if (now < player.packetStateData.inventoryThrottleUntil) {
+            event.setCancelled(true);
+            player.onPacketCancel();
+            return;
+        }
+
         WrapperPlayClientClickWindow click = new WrapperPlayClientClickWindow(event);
         int windowId = click.getWindowId();
         int slot = click.getSlot();
@@ -54,7 +62,7 @@ public class ItemDisappearanceCheck extends Check implements PacketReceiveListen
         ItemStack carried = click.getCarriedItemStack();
 
         if (clickType == WindowClickType.THROW) {
-            lastThrowPacketTime = System.currentTimeMillis();
+            lastThrowPacketTime = now;
         }
 
         // 1. If another check cancelled this inventory click (e.g. AutoTotem, InventoryAction, InventoryAutoClicker):
@@ -62,7 +70,9 @@ public class ItemDisappearanceCheck extends Check implements PacketReceiveListen
         // Since the packet was cancelled and rejected by the server, an authoritative resync is
         // required immediately to restore both the slot and cursor so items never vanish.
         if (event.isCancelled()) {
-            InventoryResync.resync(player, windowId, slot, carried);
+            player.packetStateData.inventoryThrottleUntil = Math.max(player.packetStateData.inventoryThrottleUntil, now + 400L);
+            int originSlot = player.packetStateData.lastTotemTouchSlot;
+            InventoryResync.resyncAndRestore(player, windowId, slot, originSlot, carried);
             lastTotemCount = countTotems();
             return;
         }
@@ -71,7 +81,6 @@ public class ItemDisappearanceCheck extends Check implements PacketReceiveListen
         int currentTotems = countTotems();
         if (lastTotemCount >= 0 && currentTotems >= 0 && currentTotems < lastTotemCount) {
             int loss = lastTotemCount - currentTotems;
-            long now = System.currentTimeMillis();
             boolean legitThrow = (now - lastThrowPacketTime < 300);
             boolean legitContainerDeposit = (windowId != 0);
             boolean legitTotemPop = (player.packetStateData.serverTotemPopTime > 0 && (now - player.packetStateData.serverTotemPopTime < 3000))
@@ -103,11 +112,23 @@ public class ItemDisappearanceCheck extends Check implements PacketReceiveListen
     }
 
     private void handleCloseWindow(PacketReceiveEvent event) {
-        // If player had an item on cursor when closing a window, ensure it is safely preserved
+        player.packetStateData.inventoryThrottleUntil = 0;
+        // If player had an item on cursor when closing a window, ensure it is safely restored to inventory
         if (player.platformPlayer != null) {
-            ItemStack cursor = player.platformPlayer.getInventory().getItemOnCursor();
-            if (cursor != null && !cursor.isEmpty()) {
-                InventoryResync.resync(player, 0, -1, cursor);
+            try {
+                ac.grim.grimac.GrimAPI.INSTANCE.getScheduler().getEntityScheduler().execute(
+                        player.platformPlayer,
+                        ac.grim.grimac.GrimAPI.INSTANCE.getGrimPlugin(),
+                        () -> {
+                            try {
+                                player.platformPlayer.restoreCursorToSlot(-1);
+                            } catch (Exception ignored) {
+                            }
+                        },
+                        null,
+                        0
+                );
+            } catch (Exception ignored) {
             }
         }
         lastTotemCount = countTotems();
